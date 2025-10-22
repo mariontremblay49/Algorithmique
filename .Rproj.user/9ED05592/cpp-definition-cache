@@ -1,0 +1,19 @@
+[
+    {
+        "file": "/Users/mariontremblay/Documents/Ranking/src/rcpp_hello.cpp",
+        "file_last_write": 1761124648.0,
+        "definitions": [
+            {
+                "usr": "c:@F@rcpp_hello#",
+                "kind": 6,
+                "parent_name": "",
+                "name": "rcpp_hello",
+                "file": "/Users/mariontremblay/Documents/Ranking/src/rcpp_hello.cpp",
+                "line": 18,
+                "column": 6,
+                "hidden": false
+            }
+        ],
+        "hidden": false
+    }
+]
