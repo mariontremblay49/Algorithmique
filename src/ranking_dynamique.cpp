@@ -7,9 +7,6 @@
 using namespace Rcpp;
 using namespace std;
 
-// ----------------------------------------------------
-// Structures
-// ----------------------------------------------------
 struct Item {
   double score;
   vector<string> groups;
@@ -20,36 +17,30 @@ struct ParentInfo {
   bool took;
 };
 
-
-// Utility: split a string by comma and trim whitespace
 vector<string> split_and_trim(const string &s) {
   vector<string> result;
   string token;
   stringstream ss(s);
   while (getline(ss, token, ',')) {
-    // trim
-    token.erase(token.begin(), find_if(token.begin(), token.end(), [](unsigned char ch) {
-      return !isspace(ch);
-    }));
-    token.erase(find_if(token.rbegin(), token.rend(), [](unsigned char ch) {
-      return !isspace(ch);
-    }).base(), token.end());
+    token.erase(token.begin(), find_if(token.begin(), token.end(),
+                            [](unsigned char ch) { return !isspace(ch); }));
+    token.erase(find_if(token.rbegin(), token.rend(),
+                        [](unsigned char ch) { return !isspace(ch); }).base(),
+                        token.end());
     result.push_back(token);
   }
   return result;
 }
 
-// Convert vector<int> to comma-separated key string
 string vec_to_key(const vector<int> &v) {
   string s;
-  for (int i = 0; i < v.size(); i++) {
+  for (size_t i = 0; i < v.size(); i++) {
     s += to_string(v[i]);
     if (i + 1 < v.size()) s += ",";
   }
   return s;
 }
 
-// Convert key "0,1,3" to vector<int>
 vector<int> key_to_vec(const string &key) {
   vector<int> res;
   string token;
@@ -61,66 +52,74 @@ vector<int> key_to_vec(const string &key) {
 }
 
 
-// ------------------
-// MAIN DP ALGORITHM
-// ------------------
-
 // [[Rcpp::export]]
 Rcpp::List ranking_max_cpp(
-    Rcpp::NumericVector score,
-    Rcpp::CharacterVector groupes,
+    Rcpp::DataFrame data,
     int k,
-    Rcpp::CharacterVector group_names,
-    Rcpp::IntegerVector max_cap
+    Rcpp::List max_par_groupe
 ) {
+  // ----------------------------
+  // 1) Extraire les colonnes
+  // ----------------------------
+  NumericVector score = data["score"];
+  CharacterVector groupes = data["groupes"];
+
   int n = score.size();
+
+  // groupes nommés
+  CharacterVector group_names = max_par_groupe.names();
   int G = group_names.size();
 
-  // Convert input groups to C++ vector<string>
-  vector<string> groups(G);
-  for (int i = 0; i < G; i++) groups[i] = string(group_names[i]);
-
-  // Parse items
-  vector<Item> data(n);
-  for (int i = 0; i < n; i++) {
-    data[i].score = score[i];
-    data[i].groups = split_and_trim(string(groupes[i]));
+  // capacités par groupe
+  IntegerVector max_cap(G);
+  for (int g = 0; g < G; g++) {
+    max_cap[g] = as<int>( max_par_groupe[g] );
   }
 
-  // Map group name -> index
+  // ----------------------------
+  // 2) Parser les items
+  // ----------------------------
+  vector<Item> items(n);
+  for (int i = 0; i < n; i++) {
+    items[i].score = score[i];
+    items[i].groups = split_and_trim( string(groupes[i]) );
+  }
+
+  // Map groupe -> index
   unordered_map<string,int> group_index;
   for (int g = 0; g < G; g++) {
-    group_index[groups[g]] = g;
+    group_index[ string(group_names[g]) ] = g;
   }
 
-  // Build item_groups matrix
+  // Matrice d'appartenance aux groupes
   vector<vector<int>> item_groups(n, vector<int>(G, 0));
   for (int i = 0; i < n; i++) {
-    for (auto &g : data[i].groups) {
-      if (group_index.count(g))
+    for (auto &g : items[i].groups) {
+      if (group_index.count(g)) {
         item_groups[i][group_index[g]] = 1;
+      }
     }
   }
 
-  // DP[s][key] = score
-  vector<unordered_map<string,double>> DP(k + 1);
+  // ----------------------------
+  // 3) DP
+  // ----------------------------
+  vector< unordered_map<string,double> > DP(k + 1);
   unordered_map<string, ParentInfo> parent;
 
-  // Initial state
   vector<int> zero_counts(G, 0);
   string key0 = vec_to_key(zero_counts);
   DP[0][key0] = 0.0;
 
-  // DP core
   for (int i = 0; i < n; i++) {
     const vector<int> &grp_i = item_groups[i];
-    double score_i = data[i].score;
+    double score_i = items[i].score;
 
     for (int s = k; s >= 1; s--) {
       int prev_s = s - 1;
 
       for (auto &kv : DP[prev_s]) {
-        string key_prev = kv.first;
+        const string &key_prev = kv.first;
         double prev_score = kv.second;
 
         vector<int> prev_counts = key_to_vec(key_prev);
@@ -138,17 +137,17 @@ Rcpp::List ranking_max_cpp(
 
         if (!DP[s].count(key_new) || new_score > DP[s][key_new]) {
           DP[s][key_new] = new_score;
-          parent[to_string(i)+"|"+to_string(s)+"|"+key_new] =
+          parent[to_string(i) + "|" + to_string(s) + "|" + key_new] =
             { key_prev, true };
         }
       }
     }
 
-    // Propagation: not taking the item
+    // Cas où on ne prend pas l’item
     for (int s = 0; s <= k; s++) {
       for (auto &kv : DP[s]) {
         string key_prev = kv.first;
-        string pkey = to_string(i)+"|"+to_string(s)+"|"+key_prev;
+        string pkey = to_string(i) + "|" + to_string(s) + "|" + key_prev;
         if (!parent.count(pkey)) {
           parent[pkey] = { key_prev, false };
         }
@@ -156,7 +155,9 @@ Rcpp::List ranking_max_cpp(
     }
   }
 
-  // Find best objective
+  // ----------------------------
+  // 4) Trouver le meilleur état final
+  // ----------------------------
   double best_score = -1e18;
   int best_s = 0;
   string best_key = "";
@@ -171,18 +172,20 @@ Rcpp::List ranking_max_cpp(
     }
   }
 
-  // Reconstruct solution
+  // ----------------------------
+  // 5) Reconstruction
+  // ----------------------------
   vector<int> selected;
   int s = best_s;
   string key = best_key;
 
-  for (int i = n-1; i >= 0; i--) {
-    string pkey = to_string(i)+"|"+to_string(s)+"|"+key;
+  for (int i = n - 1; i >= 0; i--) {
+    string pkey = to_string(i) + "|" + to_string(s) + "|" + key;
     if (!parent.count(pkey)) continue;
 
     ParentInfo p = parent[pkey];
     if (p.took) {
-      selected.push_back(i+1); // +1 if you want R indexing
+      selected.push_back(i + 1);   // indexation R
       key = p.prev_key;
       s--;
     } else {

@@ -15,5 +15,5 @@ k <- 3
 max_par_groupe <- list(A = 2, B = 2)
 
 # Test Max
-res <- ranking_max_cpp(data$score,data$groupe, k, names(max_par_groupe), as.integer(unlist(max_par_groupe)))
+res <- ranking_max_cpp(data, k, max_par_groupe)
 print(res)
