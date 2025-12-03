@@ -1,9 +1,19 @@
 library(Rcpp)
-Rcpp::sourceCpp("C:/Users/flavi/OneDrive/Documents/ENSIIE/Algo/testcpp.cpp")
 
-scores <- c(9, 8, 7, 10, 6)
-groupes <- c("B", "A, B", "B", "A")
-groups <- c("A", "B")
-max_cap <- c(2, 2)
 
-ranking_max_cpp(scores, groupes, 2, groups, max_cap)
+# EXEMPLE MAX
+# Exemple de données
+data <- data.frame(
+  id = 1:5,
+  score = c(9, 6, 8, 7, 10),
+  groupes = c("B", "A", "A,B", "B", "A"),
+  stringsAsFactors = FALSE
+)
+
+# Contraintes
+k <- 3
+max_par_groupe <- list(A = 2, B = 2)
+
+# Test Max
+res <- ranking_max_cpp(data$score,data$groupe, k, names(max_par_groupe), as.integer(unlist(max_par_groupe)))
+print(res)
