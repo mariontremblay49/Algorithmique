@@ -1,0 +1,36 @@
+---
+title: "Evaluation des algorithmes de ranking pour ..."
+output: pdf_document
+date: "2025-12-08"
+author: "Flavie Bertrand et Marion Tremblay" 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Description du problème et objectif
+
+
+
+## L'algorithme naïf 
+
+
+
+## Solution 1 : programmation dynamique 
+
+
+
+## Solution 2 : programmation dynamique et tas 
+
+
+
+## Comparaison des performances ?
+
+
+
+## Temps de calcul 
+
+
+
+
