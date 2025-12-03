@@ -53,7 +53,7 @@ vector<int> key_to_vec(const string &key) {
 
 
 // [[Rcpp::export]]
-Rcpp::List ranking_max_cpp(
+Rcpp::List ranking_max_cpp_new(
     Rcpp::DataFrame data,
     int k,
     Rcpp::List max_par_groupe
