@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 
-## L'algorithme naïf 
+## Approche heuristique 
 
 
 
@@ -25,12 +25,23 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 
-## Comparaison des performances ?
+## Comparaison des résultats 
 
 
 
-## Temps de calcul 
+## Complexité des algorithmes (par le calcul)
 
+
+
+## Temps de calcul
+
+On étudie ici le temps de complexité des algorithmes en fonction ...
+
+
+
+```{r}
+
+```
 
 
 
