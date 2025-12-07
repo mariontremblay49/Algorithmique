@@ -1,203 +1,191 @@
 #include <Rcpp.h>
 #include <unordered_map>
-#include <sstream>
-#include <algorithm>
 #include <string>
 #include <vector>
+#include <algorithm>
+
 using namespace Rcpp;
-using namespace std;
 
-struct Item {
+// Structure pour représenter un état dans la programmation dynamique
+struct State {
   double score;
-  vector<string> groups;
+  std::vector<int> items;
+
+  State() : score(-std::numeric_limits<double>::infinity()) {}
+  State(double s, std::vector<int> itms) : score(s), items(itms) {}
 };
 
-struct ParentInfo {
-  string prev_key;
-  bool took;
-};
-
-vector<string> split_and_trim(const string &s) {
-  vector<string> result;
-  string token;
-  stringstream ss(s);
-  while (getline(ss, token, ',')) {
-    token.erase(token.begin(), find_if(token.begin(), token.end(),
-                            [](unsigned char ch) { return !isspace(ch); }));
-    token.erase(find_if(token.rbegin(), token.rend(),
-                        [](unsigned char ch) { return !isspace(ch); }).base(),
-                        token.end());
-    result.push_back(token);
+// Fonction pour créer une clé unique à partir des compteurs de groupes
+std::string make_key(const std::vector<int>& counts) {
+  std::string key;
+  for (size_t i = 0; i < counts.size(); i++) {
+    if (i > 0) key += ",";
+    key += std::to_string(counts[i]);
   }
-  return result;
+  return key;
 }
 
-string vec_to_key(const vector<int> &v) {
-  string s;
-  for (size_t i = 0; i < v.size(); i++) {
-    s += to_string(v[i]);
-    if (i + 1 < v.size()) s += ",";
+// Fonction pour parser une clé en vecteur de compteurs
+std::vector<int> parse_key(const std::string& key) {
+  std::vector<int> counts;
+  std::stringstream ss(key);
+  std::string item;
+  while (std::getline(ss, item, ',')) {
+    counts.push_back(std::stoi(item));
   }
-  return s;
+  return counts;
 }
-
-vector<int> key_to_vec(const string &key) {
-  vector<int> res;
-  string token;
-  stringstream ss(key);
-  while (getline(ss, token, ',')) {
-    res.push_back(stoi(token));
-  }
-  return res;
-}
-
 
 // [[Rcpp::export]]
-Rcpp::List ranking_max_cpp(
-    Rcpp::DataFrame data,
-    int k,
-    Rcpp::List max_par_groupe
-) {
-  // ----------------------------
-  // 1) Extraire les colonnes
-  // ----------------------------
-  NumericVector score = data["score"];
+List ranking_max_cpp(DataFrame data, int k, List max_par_groupe,
+                     NumericVector poids_positions) {
+
+  // Extraction des données
+  NumericVector scores = data["score"];
   CharacterVector groupes = data["groupes"];
+  int n = scores.size();
 
-  int n = score.size();
-
-  // groupes nommés
+  // Extraction des groupes et leurs limites
   CharacterVector group_names = max_par_groupe.names();
   int G = group_names.size();
+  std::vector<int> max_cap(G);
+  std::unordered_map<std::string, int> group_index;
 
-  // capacités par groupe
-  IntegerVector max_cap(G);
   for (int g = 0; g < G; g++) {
-    max_cap[g] = as<int>( max_par_groupe[g] );
+    std::string gname = as<std::string>(group_names[g]);
+    group_index[gname] = g;
+    max_cap[g] = as<int>(max_par_groupe[gname]);
   }
 
-  // ----------------------------
-  // 2) Parser les items
-  // ----------------------------
-  vector<Item> items(n);
+  // Création de la matrice binaire des groupes
+  std::vector<std::vector<int>> item_groups(n, std::vector<int>(G, 0));
+
   for (int i = 0; i < n; i++) {
-    items[i].score = score[i];
-    items[i].groups = split_and_trim( string(groupes[i]) );
-  }
+    std::string grp_str = as<std::string>(groupes[i]);
+    std::stringstream ss(grp_str);
+    std::string token;
 
-  // Map groupe -> index
-  unordered_map<string,int> group_index;
-  for (int g = 0; g < G; g++) {
-    group_index[ string(group_names[g]) ] = g;
-  }
+    while (std::getline(ss, token, ',')) {
+      // Trim whitespace
+      token.erase(0, token.find_first_not_of(" \t"));
+      token.erase(token.find_last_not_of(" \t") + 1);
 
-  // Matrice d'appartenance aux groupes
-  vector<vector<int>> item_groups(n, vector<int>(G, 0));
-  for (int i = 0; i < n; i++) {
-    for (auto &g : items[i].groups) {
-      if (group_index.count(g)) {
-        item_groups[i][group_index[g]] = 1;
+      if (group_index.find(token) != group_index.end()) {
+        item_groups[i][group_index[token]] = 1;
       }
     }
   }
 
-  // ----------------------------
-  // 3) DP
-  // ----------------------------
-  vector< unordered_map<string,double> > DP(k + 1);
-  unordered_map<string, ParentInfo> parent;
+  // Programmation dynamique
+  std::vector<std::unordered_map<std::string, State>> DP(k + 1);
 
-  vector<int> zero_counts(G, 0);
-  string key0 = vec_to_key(zero_counts);
-  DP[0][key0] = 0.0;
+  // État initial
+  std::vector<int> init_counts(G, 0);
+  std::string key0 = make_key(init_counts);
+  DP[0][key0] = State(0.0, std::vector<int>());
 
-  for (int i = 0; i < n; i++) {
-    const vector<int> &grp_i = item_groups[i];
-    double score_i = items[i].score;
+  // Pour chaque position
+  for (int p = 0; p < k; p++) {
+    double w_p = poids_positions[p];
 
-    for (int s = k; s >= 1; s--) {
-      int prev_s = s - 1;
+    // Pour chaque état à la position p
+    for (auto& kv : DP[p]) {
+      const std::string& key_prev = kv.first;
+      const State& state_prev = kv.second;
 
-      for (auto &kv : DP[prev_s]) {
-        const string &key_prev = kv.first;
-        double prev_score = kv.second;
+      std::vector<int> prev_counts = parse_key(key_prev);
+      const std::vector<int>& items_used = state_prev.items;
 
-        vector<int> prev_counts = key_to_vec(key_prev);
-        vector<int> new_counts(G);
+      // Essayer chaque élément
+      for (int i = 0; i < n; i++) {
+        // Vérifier si déjà utilisé
+        if (std::find(items_used.begin(), items_used.end(), i) != items_used.end()) {
+          continue;
+        }
 
-        bool ok = true;
+        // Calculer nouveaux compteurs
+        std::vector<int> new_counts = prev_counts;
+        bool valid = true;
+
         for (int g = 0; g < G; g++) {
-          new_counts[g] = prev_counts[g] + grp_i[g];
-          if (new_counts[g] > max_cap[g]) { ok = false; break; }
+          new_counts[g] += item_groups[i][g];
+          if (new_counts[g] > max_cap[g]) {
+            valid = false;
+            break;
+          }
         }
-        if (!ok) continue;
 
-        string key_new = vec_to_key(new_counts);
-        double new_score = prev_score + score_i;
+        if (!valid) continue;
 
-        if (!DP[s].count(key_new) || new_score > DP[s][key_new]) {
-          DP[s][key_new] = new_score;
-          parent[to_string(i) + "|" + to_string(s) + "|" + key_new] =
-            { key_prev, true };
-        }
-      }
-    }
+        // Calculer nouveau score
+        double new_score = state_prev.score + w_p * scores[i];
+        std::vector<int> new_items = items_used;
+        new_items.push_back(i);
 
-    // Cas où on ne prend pas l’item
-    for (int s = 0; s <= k; s++) {
-      for (auto &kv : DP[s]) {
-        string key_prev = kv.first;
-        string pkey = to_string(i) + "|" + to_string(s) + "|" + key_prev;
-        if (!parent.count(pkey)) {
-          parent[pkey] = { key_prev, false };
+        // Créer clé du nouvel état
+        std::string key_new = make_key(new_counts);
+
+        // Mettre à jour si meilleur
+        if (DP[p + 1].find(key_new) == DP[p + 1].end() ||
+            new_score > DP[p + 1][key_new].score) {
+          DP[p + 1][key_new] = State(new_score, new_items);
         }
       }
     }
   }
 
-  // ----------------------------
-  // 4) Trouver le meilleur état final
-  // ----------------------------
-  double best_score = -1e18;
-  int best_s = 0;
-  string best_key = "";
+  // Trouver la meilleure solution
+  double best_score = -std::numeric_limits<double>::infinity();
+  std::vector<int> best_items;
 
-  for (int s = 0; s <= k; s++) {
-    for (auto &kv : DP[s]) {
-      if (kv.second > best_score) {
-        best_score = kv.second;
-        best_s = s;
-        best_key = kv.first;
-      }
+  for (auto& kv : DP[k]) {
+    const State& state = kv.second;
+    if (state.score > best_score) {
+      best_score = state.score;
+      best_items = state.items;
     }
   }
 
-  // ----------------------------
-  // 5) Reconstruction
-  // ----------------------------
-  vector<int> selected;
-  int s = best_s;
-  string key = best_key;
-
-  for (int i = n - 1; i >= 0; i--) {
-    string pkey = to_string(i) + "|" + to_string(s) + "|" + key;
-    if (!parent.count(pkey)) continue;
-
-    ParentInfo p = parent[pkey];
-    if (p.took) {
-      selected.push_back(i + 1);   // indexation R
-      key = p.prev_key;
-      s--;
-    } else {
-      key = p.prev_key;
-    }
+  // Construire le résultat
+  if (best_items.empty()) {
+    warning("Aucune solution trouvée respectant les contraintes");
+    return List::create(
+      Named("selected_items") = DataFrame::create(),
+      Named("best_score") = 0.0
+    );
   }
 
-  reverse(selected.begin(), selected.end());
+  // Créer les vecteurs de résultat
+  int n_selected = best_items.size();
+  IntegerVector result_indices(n_selected);
+  NumericVector result_scores(n_selected);
+  CharacterVector result_groupes(n_selected);
+  IntegerVector result_positions(n_selected);
+  NumericVector result_poids(n_selected);
+  NumericVector result_score_pondere(n_selected);
+
+  for (int i = 0; i < n_selected; i++) {
+    int idx = best_items[i];
+    result_indices[i] = idx + 1; // R indexing starts at 1
+    result_scores[i] = scores[idx];
+    result_groupes[i] = groupes[idx];
+    result_positions[i] = i + 1;
+    result_poids[i] = poids_positions[i];
+    result_score_pondere[i] = poids_positions[i] * scores[idx];
+  }
+
+  // Créer le DataFrame de sortie
+  DataFrame result_df = DataFrame::create(
+    Named("index") = result_indices,
+    Named("score") = result_scores,
+    Named("groupes") = result_groupes,
+    Named("position") = result_positions,
+    Named("poids_position") = result_poids,
+    Named("score_pondere") = result_score_pondere
+  );
 
   return List::create(
-    _["selected_items"] = selected,
-    _["best_score"] = best_score,
-    _["best_s"] = best_s
+    Named("selected_items") = result_df,
+    Named("best_score") = best_score
   );
 }
