@@ -142,239 +142,437 @@ Voici nos 4 algorithmes :
 
 1. **Algorithme naïf R**
 2. **Algorithme dynamique R**
-3. **Algorithme dynamique C++ (DP exacte)**
+3. **Algorithme dynamique C++ **
 4. **Algorithme dynamique C++ amélioré (beam search)**
 
-Pour chacun, nous analysons :
+Pour chacun, nous analysons la complexité **temps** (meilleur, pire, moyenne)
+Les paramètres en jeu sont :  
+- **n** : nombre d'items (taille de l'entrée)
+- **G** : nombre de groupes
+- **k** : nombre de positions à remplir
+- **S** : nombre d'états effectivement atteints dans la DP
+- **M** : nombre théorique maximal d'états = $\prod_{g=1}^G (\text{max\_cap}_g + 1)$
+- **$\bar{g}$** : nombre moyen de groupes par item
 
-- La complexité **temps** (meilleur, pire, moyenne)
-- La complexité **mémoire**
-- Les paramètres en jeu :  
-  - \(n\) : nombre d’items  
-  - \(G\) : nombre de groupes  
-  - \(k\) : cardinal maximal  
-  - \(m\) : nombre de groupes actifs  
-  - \(S\) : nombre d’états atteints en DP  
-  - \(M\) : borne combinatoire théorique des états
 
+## 1. Algorithme Naïf Glouton (R)
 
-## 6.1. Algorithme naïf en R
+Sélection gloutonne : pour chaque position p, parcourir tous les candidats restants et choisir celui au meilleur gain immédiat $w_p \times \text{score}_i$.
 
-Dans cette algorithme, à chaque étape on explore tous les candidats restants pour vérifier la faisabilité des groupes avant de choisir celui au score maximal.
+### Analyse détaillée
 
-### 6.1.1 Complexité théorique
+**Étape 1 - Initialisation** : $O(G)$
 
-On rappelle :
+- Création des structures de données
+- Négligeable devant la boucle principale
 
-- Vérification faisabilité groupe = coût \(\Theta(G)\)
-- Recherche du max = \(\Theta(n)\)
+**Étape 2 - Boucle principale**
 
-**Meilleur cas**
+Pour chaque position $p = 1, \ldots, k$ :
 
-\[
-T(n) = \Theta(n \log n)
-\]
+- Nombre d'items restants à examiner : $n - (p-1)$
+- Pour chaque item candidat :
+  - Parser les groupes : $O(\bar{g})$ 
+  - Vérifier les contraintes : $O(\bar{g})$ comparaisons
+  - Calculer le gain : $O(1)$
+- Mise à jour des compteurs : $O(\bar{g})$
 
-(le tri initial domine si la sélection s’arrête tôt ou si \(k=O(1)\)).
+Coût pour la position $p$ :
+$$T_p = O((n - p + 1) \times \bar{g})$$
 
-**Pire cas**
+Coût total de la boucle :
+$$T_{\text{boucle}} = \sum_{p=1}^{k} O((n - p + 1) \times \bar{g}) = O\left(\bar{g} \times \left(kn - \frac{k(k-1)}{2}\right)\right) \approx O(k n \bar{g})$$
 
-\[
-T(n) = \Theta(G n^2)
-\]
+### Complexité temporelle
 
-(ou \(\Theta(n^2)\) si \(G = O(1)\)).
+$$\boxed{T_{\text{naïf}}(n) = O(k n \bar{g})}$$
 
-**Cas moyen**
+**Meilleur cas** : $\boxed{T(n) = O(kn)}$ si $\bar{g} = O(1)$
 
-\[
-T(n) = \Theta(G n^2)
-\]
+**Cas moyen** : $\boxed{T(n) = O(k n \bar{g})}$
 
-**Espace**
+**Pire cas** : $\boxed{T(n) = O(k n G)}$ si $\bar{g} = G$
 
-\[
-\Theta(n + m)
-\]
 
 
-## 6.2. Algorithme dynamique en R
+## 2. Algorithme DP (R)
 
-Cet algorithme construit un tableau de DP associant à chaque état un score maximal.
+Programmation dynamique avec états définis par $(p, c_1, \ldots, c_G)$ où $c_g$ = nombre d'items du groupe $g$ déjà utilisés.
 
-### 6.2.1 Rappels sur les états
+### Analyse détaillée
 
-Un état est défini par :
+**Étape 1 - Prétraitement** : $O(nG)$
 
-\[
-\text{état} = (s, c_1, c_2, ..., c_G)
-\]
+- Parser les groupes de chaque item : $O(n \bar{g})$
+- Créer la matrice binaire `item_groups` : $O(nG)$
 
-où \(c_g\) est le nombre d’items du groupe \(g\).
+**Étape 2 - Programmation dynamique**
 
-Nombre théorique maximal d’états :
+Structure : `DP[[p+1]][[key]]` avec `key = "c1,c2,...,cG"`
 
-\[
-M = \prod_{g=1}^G ( \text{max\_cap}_g + 1 )
-\]
+Pour chaque position $p = 1, \ldots, k$ :
 
-### 6.2.2 Complexité
+- États actifs au niveau $p-1$ : $S_p$ états
+- Pour chaque état actif :
+  - Parser la clé : $O(G)$
+  - Pour chaque item $i = 1, \ldots, n$ :
+    - Vérifier si utilisé : $O(p)$ 
+    - Calculer nouveaux compteurs : $O(G)$
+    - Vérifier contraintes : $O(G)$
+    - Créer nouvelle clé : $O(G)$
+    - Mise à jour DP : $O(1)$
 
-**Meilleur cas**
+Coût pour un état et un item : $O(p + G)$
 
-\[
-T(n) = \Theta(nk)
-\]
+Coût pour la position $p$ : $T_p = O(S_p \times n \times (p + G))$
 
-si très peu d’états sont peuplés.
+En supposant $S_p \approx S$ constant et $G \geq k$ :
 
-**Pire cas**
+$$T_{\text{DP}} = \sum_{p=1}^{k} O(S \times n \times G) = O(S n k G)$$
 
-\[
-T(n) = \Theta(n k S m)
-\]
+**Étape 3 - Recherche du meilleur** : $O(S \times G)$
 
-avec \(S=M\), donc exponentiel en \(G\).
+### Complexité temporelle
 
-**Cas moyen**
+$$\boxed{T_{\text{DP-R}}(n) = O(S n k G)}$$
 
-\[
-T(n) = \Theta(n k m S)
-\]
+**Meilleur cas** : $\boxed{T(n) = O(nkG)}$ si $S = O(1)$
 
-**Espace**
+**Cas moyen** : $\boxed{T(n) = O(SnkG)}$ avec $S \ll M$
 
-\[
-\Theta(n m + n k S)
-\]
+**Pire cas** : $\boxed{T(n) = O(MnkG)}$ où $M = \prod_{g=1}^G (\text{max\_cap}_g + 1)$ (exponentiel en $G$)
 
 
+## 3. Algorithme DP (C++)
 
-## 6.3. Algorithme dynamique C++ (exact)
+Même logique que DP R, mais avec `unordered_map` et optimisations C++.
 
-Version C++ optimisée utilisant `unordered_map` mais explorant encore **tous les états utiles**.
+### Analyse détaillée
 
-**Meilleur cas**
+**Prétraitement** : $O(nG)$
 
-\[
-T(n) = O(n k G)
-\]
+- Parsing avec `stringstream` : $O(n\bar{g})$
+- Construction matrice : $O(nG)$
 
-Si \(S=O(1)\), très petit nombre d’états actifs.
+**Programmation dynamique**
 
-Si en plus \(k=O(1), G=O(1)\) :
+Pour chaque position $p$, chaque état $S_p$, chaque item $n$ :
 
-\[
-T(n)=\Theta(n)
-\]
+- Parse key : $O(G)$
+- Vérifier si utilisé (std::find) : $O(p)$
+- Calculer compteurs : $O(G)$
+- Make key : $O(G)$
+- Hash + lookup : $O(G)$ pour le hashing, $O(1)$ amorti pour l'accès
+- Insert/update : $O(1)$ amorti
 
-**Pire cas**
+Coût par transition : $O(p + G)$
 
-\[
-T(n)=\Theta(n k M G)
-\]
+Si $G \geq k$ : $T_{\text{DP}} = O(SnkG)$
 
-où :
+### Complexité temporelle
 
-\[
-M = \prod_{g=1}^G (\text{max\_cap}_g + 1)
-\]
+$$\boxed{T_{\text{DP-C++}}(n) = O(S n k G)}$$
 
-exponentiel en \(G\).
+**Meilleur cas** : $\boxed{T(n) = O(nkG)}$ si $S = O(1)$
 
-**Cas moyen**
+**Cas moyen** : $\boxed{T(n) = O(SnkG)}$
 
-\[
-T(n)=O(n k S G)
-\]
+**Pire cas** : $\boxed{T(n) = O(MnkG)}$ avec $M$ exponentiel en $G$
 
-avec \(S\ll M\) en pratique.
 
-**Espace**
+**Note** : Même complexité asymptotique que DP R, mais facteur constant 5-20× plus petit en pratique.
 
-Même ordre de grandeur que R :
 
-\[
-\Theta(k S G)
-\]
+## 4. Algorithme dynamique amélioré (C++)
 
+DP avec pruning : conserve uniquement les `beam_size` meilleurs états à chaque niveau.
 
+### Analyse détaillée
 
-## 6.4. Algorithme dynamique amélioré C++ (Beam Search)
+Soit $B = \min(\text{beam\_size}, M)$ le nombre effectif d'états conservés.
 
-On conserve uniquement les **beam_size meilleurs états** à chaque niveau de DP.
+**Étape 1 - Tri initial** : $O(n \log n)$
 
-### 6.4.1. Complexité
+Items triés par score décroissant pour améliorer la qualité des états gardés.
 
-**Meilleur cas (beam_size = 1)**
+**Étape 2 - DP avec tas (priority_queue)**
 
-\[
-T(n)=O(n k G)
-\]
+Pour chaque position $p$, chaque état (max $B$), chaque item $n$ :
 
-**Pire cas**
+- Extraction des états du tas : $O(B \log B)$ (une fois par niveau)
+- Pour chaque état × item :
+  - Calcul compteurs : $O(G)$
+  - Make key : $O(G)$
+  - Push dans tas : $O(\log B)$
+  - Pruning si nécessaire : $O(\log B)$
 
-\[
-T(n)=O\left(n k S (G + \log S)\right)
-\]
+Coût par niveau : $T_p = O(B \log B) + O(nB(G + \log B))$
 
-où
+Si $G \geq \log B$ (généralement vrai) :
 
-\[
-S = \min\left(\text{beam\_size},\; \prod_{g=1}^G (\text{max\_cap}_g+1) \right)
-\]
+$$T_p = O(nBG)$$
 
-**Cas moyen**
+Sur $k$ niveaux :
 
-\[
-T(n)=O(n k S G)
-\]
+$$T_{\text{DP}} = O(nkBG)$$
 
-avec un \(S\) modéré et contrôlé par `beam_size`.
+**Étape 3 - Recherche meilleur** : $O(kB)$
 
-**Espace**
+**Étape 4 - Reconstruction** : $O(n)$
 
-\[
-\Theta(k S G)
-\]
+### Complexité temporelle
 
+$$\boxed{T_{\text{Beam}}(n) = O(n \log n + nkBG)}$$
 
+Si $nkBG \gg n \log n$ : $\boxed{T_{\text{Beam}}(n) = O(nkBG)}$
 
-## 6.5. Graphiques comparatifs
+**Meilleur cas** : $\boxed{T(n) = O(n \log n + nkG)}$ si $B = 1$
 
-```{r message=FALSE, warning=FALSE}
+**Cas moyen** : $\boxed{T(n) = O(n \log n + nkBG)}$ avec $B$ modéré (100-10000)
+
+**Pire cas** : $\boxed{T(n) = O(n \log n + nkBG)}$ (même formule, $B$ peut être grand)
+
+
+**Avantage majeur** : Complexité **contrôlable** via `beam_size`, contrairement aux versions exactes.
+
+
+
+## Tableau récapitulatif
+
+| Algorithme           | Meilleur cas            | Cas moyen              | Pire cas                    |
+|----------------------|-------------------------|------------------------|-----------------------------|
+| **Naïf R**           | $O(kn)$                 | $O(kn\bar{g})$         | $O(knG)$                    |
+| **DP R**             | $O(nkG)$                | $O(SnkG)$              | $O(MnkG)$                   |
+| **DP C++**           | $O(nkG)$                | $O(SnkG)$              | $O(MnkG)$                   |
+| **Beam C++**         | $O(n \log n + nkG)$     | $O(n \log n + nkBG)$   | $O(n \log n + nkBG)$        |
+
+
+## Comparaison graphique
+
+```{r complexity-comparison, echo=FALSE, message=FALSE, warning=FALSE, fig.width=12, fig.height=6}
 library(ggplot2)
 library(dplyr)
 library(tidyr)
+library(scales)
 
-n <- seq(100, 2000, length.out = 200)
+# Paramètres de simulation
+n_values <- seq(100, 2000, length.out = 200)
 G <- 5
 k <- 20
-S <- 200
-M <- (3+1)^G
+g_bar <- 2  # nombre moyen de groupes par item
+S <- 200    # États moyens atteints
+B <- 1000   # Beam size
+M <- (3+1)^G  # Pire cas avec cap_g = 3 pour chaque groupe
 
-df <- data.frame(
-  n = n,
-  naive = n^2 * G,
-  dp_r = n * k * S,
-  dp_cpp = n * k * S * G,
-  dp_beam = n * k * S * (G + log(S))
+# === CAS MOYEN ===
+df_moyen <- data.frame(
+  n = n_values,
+  Naive = k * n_values * g_bar,
+  DP_R = S * n_values * k * G,
+  DP_Cpp = S * n_values * k * G / 10,  # Facteur constant 10x plus petit
+  Beam = n_values * log(n_values) + B * n_values * k * G
 )
 
-df_long <- df %>%
-  pivot_longer(-n, names_to="algo", values_to="T")
+df_moyen_long <- df_moyen %>%
+  pivot_longer(-n, names_to = "algo", values_to = "operations") %>%
+  mutate(algo = factor(algo, levels = c("Naive", "DP_R", "DP_Cpp", "Beam")))
 
-ggplot(df_long, aes(n, T, color=algo)) +
-  geom_line(size=1) +
-  scale_y_log10() +
-  theme_minimal() +
+p1 <- ggplot(df_moyen_long, aes(x = n, y = operations, color = algo)) +
+  geom_line(size = 1.2) +
+  scale_y_log10(
+    labels = comma,
+    breaks = 10^(3:10)
+  ) +
+  scale_color_manual(
+    values = c(
+      "Naive" = "#E74C3C",
+      "DP_R" = "#3498DB",
+      "DP_Cpp" = "#2ECC71",
+      "Beam" = "#9B59B6"
+    ),
+    labels = c(
+      "Naive" = "Naïf R",
+      "DP_R" = "DP R",
+      "DP_Cpp" = "DP C++",
+      "Beam" = "Beam C++"
+    )
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "bottom",
+    plot.title = element_text(face = "bold", size = 16),
+    panel.grid.minor = element_blank()
+  ) +
   labs(
-    title="Comparaison asymptotique des 4 algorithmes",
-    y="Temps (échelle logarithmique)",
-    x="n"
+    title = sprintf("Cas moyen (G=%d, k=%d, S=%d, B=%d)", G, k, S, B),
+    x = "Nombre d'items (n)",
+    y = "Nombre d'opérations (échelle log)",
+    color = "Algorithme"
+  )
+
+# === PIRE CAS ===
+df_pire <- data.frame(
+  n = n_values,
+  Naive = k * n_values * G,
+  DP_R = pmin(M * n_values * k * G, 1e12),  # Limité pour visibilité
+  DP_Cpp = pmin(M * n_values * k * G / 10, 1e12),
+  Beam = n_values * log(n_values) + B * n_values * k * G
+)
+
+df_pire_long <- df_pire %>%
+  pivot_longer(-n, names_to = "algo", values_to = "operations") %>%
+  mutate(algo = factor(algo, levels = c("Naive", "DP_R", "DP_Cpp", "Beam")))
+
+p2 <- ggplot(df_pire_long, aes(x = n, y = operations, color = algo)) +
+  geom_line(size = 1.2) +
+  scale_y_log10(
+    labels = comma,
+    breaks = 10^(3:12)
+  ) +
+  scale_color_manual(
+    values = c(
+      "Naive" = "#E74C3C",
+      "DP_R" = "#3498DB",
+      "DP_Cpp" = "#2ECC71",
+      "Beam" = "#9B59B6"
+    ),
+    labels = c(
+      "Naive" = "Naïf R",
+      "DP_R" = "DP R (plafonné)",
+      "DP_Cpp" = "DP C++ (plafonné)",
+      "Beam" = "Beam C++"
+    )
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "bottom",
+    plot.title = element_text(face = "bold", size = 16),
+    panel.grid.minor = element_blank()
+  ) +
+  labs(
+    title = sprintf("Pire cas (G=%d, k=%d, M=%s, B=%d)", G, k, comma(M), B),
+    x = "Nombre d'items (n)",
+    y = "Nombre d'opérations (échelle log)",
+    color = "Algorithme",
+    caption = "Note: DP R et DP C++ plafonnés à 10^12 pour la lisibilité"
+  )
+
+# Afficher les graphiques
+print(p1)
+print(p2)
+```
+
+### Observations
+
+**Cas moyen** :
+
+- Beam Search et DP C++ sont très compétitifs
+- DP R significativement plus lent (facteur 10)
+- Naïf acceptable pour petites instances
+
+**Pire cas** :
+
+- Explosion exponentielle des DP exact (R et C++)
+- Beam Search reste linéaire et prévisible
+- Seul algorithme viable pour grands problèmes avec $G \geq 6$
+
+
+## Impact du nombre de groupes G
+
+```{r impact-groups, echo=FALSE, message=FALSE, warning=FALSE, fig.width=10, fig.height=6}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(scales)
+
+# Paramètres fixes
+n <- 1000
+k <- 20
+S <- 200
+B <- 1000
+cap <- 3  # capacité moyenne par groupe
+
+# Variation de G
+G_values <- 2:10
+
+# Calcul de M pour chaque G
+M_values <- (cap + 1)^G_values
+
+df_impact <- data.frame(
+  G = G_values,
+  M = M_values,
+  Naive = k * n * G_values,
+  DP_moyen = S * n * k * G_values,
+  DP_pire = M_values * n * k * G_values,
+  Beam = B * n * k * G_values
+)
+
+# On limite DP_pire pour la visualisation
+df_impact$DP_pire_display <- pmin(df_impact$DP_pire, 1e15)
+
+df_impact_long <- df_impact %>%
+  select(G, Naive, DP_moyen, DP_pire_display, Beam) %>%
+  pivot_longer(-G, names_to = "algo", values_to = "operations") %>%
+  mutate(
+    algo = factor(
+      algo,
+      levels = c("Naive", "DP_moyen", "DP_pire_display", "Beam"),
+      labels = c("Naïf", "DP cas moyen", "DP pire cas", "Beam")
+    )
+  )
+
+ggplot(df_impact_long, aes(x = G, y = operations, color = algo)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 3) +
+  scale_y_log10(
+    labels = comma,
+    breaks = 10^seq(4, 16, by = 2)
+  ) +
+  scale_x_continuous(breaks = G_values) +
+  scale_color_manual(
+    values = c(
+      "Naïf" = "#E74C3C",
+      "DP cas moyen" = "#2ECC71",
+      "DP pire cas" = "#3498DB",
+      "Beam" = "#9B59B6"
+    )
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "bottom",
+    plot.title = element_text(face = "bold", size = 16),
+    panel.grid.minor = element_blank()
+  ) +
+  labs(
+    title = sprintf("Impact du nombre de groupes G (n=%d, k=%d)", n, k),
+    x = "Nombre de groupes (G)",
+    y = "Nombre d'opérations (échelle log)",
+    color = "Algorithme",
+    caption = sprintf("Capacité moyenne par groupe = %d | DP pire cas plafonné à 10^15", cap)
   )
 ```
 
+### Analyse
+
+- **G $\le$ 4** : Tous les algorithmes sont viables
+- **G = 5-6** : DP commence à être problématique en pire cas
+- **G >= 7** : Seul Beam Search reste praticable
+- L'explosion de M = (cap+1)^G rend DP exact inutilisable pour grand G
+
+**Choix de l'algorithme selon le contexte**
+
+| Contexte | Algorithme recommandé | Justification |
+|----------|----------------------|---------------|
+| Petits problèmes (n<100, G<3, k<10) | **Naïf R** ou **DP R** | Simple, rapide, optimal |
+| Moyens problèmes (n<1000, G<5, k<20) | **DP C++** | Optimal garanti, performance acceptable |
+| Grands problèmes (n>1000 ou G>5) | **Beam C++** | Seul viable, quasi-optimal |
+| Production avec contraintes temps | **Beam C++** (B=5000) | Prédictible, contrôlable |
+| Recherche d'optimum prouvé | **DP C++** si faisable | Exact mais peut échouer |
+
+
+$$
+\text{Si } M = \prod_{g=1}^G (\text{max\_cap}_g + 1) > 100000 \Rightarrow \text{Utiliser Beam Search}
+$$
 
 # 7. Temps de calcul 
 
