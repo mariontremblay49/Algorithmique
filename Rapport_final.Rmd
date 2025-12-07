@@ -1,5 +1,5 @@
 ---
-title: "Evaluation des algorithmes de ranking pour ..."
+title: "Evaluation des algorithmes de ranking pour classer des produits sur un site de e-commerce"
 output: pdf_document
 date: "2025-12-08"
 author: "Flavie Bertrand et Marion Tremblay" 
@@ -12,31 +12,131 @@ header-includes:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Description du problème et objectif
+# 1. Description du problème et objectif
+
+## 1.1. Problème général de ranking 
+
+On considère :
+
+- \( i \in \{1, 2, \ldots, n\} \) : l'élément i
+- un score associé à chaque élément : \( s_i \in \mathbb{R} \)
+- une variable binaire \( x_{i,p} \in \{0,1\} \) qui vaut 1 si l’élément \( i \) est placé à la position \( p \) (0 sinon)
+- un poids \( w_p \) associé à la position \( p \)
+
+L’objectif est de déterminer un classement des \( k \) premiers éléments maximisant le score total.
+
+\[
+\max_x \sum_{i=1}^n \sum_{p=1}^k w_p\, s_i\, x_{i,p}
+\]
+
+**Sous contraintes : **
+
+- Un élément ne peut occuper au plus qu'une seule position :
+
+\[
+\sum_{p=1}^k x_{i,p} \le 1,\quad \forall i
+\]
+
+- Chaque position doit être occupée par exactement un élément :
+
+\[
+\sum_{i=1}^m x_{i,p} = 1,\quad \forall p
+\]
+
+- Contraintes de groupes :
+
+On définit des groupes :
+
+\[
+G_g \subseteq \{1,\ldots,m\}, \quad g = 1, \ldots, G
+\]
+
+On impose que chaque groupe \( G_g \) apparaisse au plus \( \alpha_g \) fois dans les \( k \) premiers :
+
+\[
+\sum_{i \in G_g} \sum_{p=1}^k x_{i,p} \le \alpha_g,\quad \forall g
+\]
+
+
+## 1.2. Exemple concret 
+
+### 1.2.1. Contexte 
+
+On applique ce problème pour sélectionner les 10 produits les plus pertinents pour les afficher sur la page d'accuei d'un site de e-commerce. Chaque produit a un score $s_i$ correspondant à la moyenne des notes données par les utilisateurs. On souhaite maximiser ce score tout en respectant certaines contraintes :
+- Diversité des catégories : pas plus de 3 produits de la même catégorie 
+- Limiter la domination d'une marque : pas plus de 2 produits de la même marque 
+- Contrainte marketing : au moins un produit sponsorisé doit apparaître dans le top 10
+
+Pour répondre à ce problème on utilise la base de données ...
+
+### 1.2.2. Formulation mathématique 
+
+La fonction objectif est :
+
+\[
+\max \sum_{k=1}^{10} w_k \, s_{\pi(k)}
+\]
+
+où :
+
+- \(\pi(k)\) est le produit placé à la position \(k\),
+- \(w_k\) est le poids associé à la position \(k\).
+
+**Sous contraintes**
+
+- Chaque position contient exactement un produit :
+
+\[
+\sum_{i=1}^{n} x_i^k = 1 \quad \forall k
+\]
+
+- Un produit ne peut être affiché qu’une seule fois :
+
+\[
+\sum_{k=1}^{10} x_i^k \le 1 \quad \forall i
+\]
+
+- Maximum 3 produits par catégorie :
+
+\[
+\sum_{i \in \text{cat } c} \sum_{k=1}^{10} x_i^k \le 3
+\]
+
+- Maximum 2 produits par marque : 
+
+\[
+\sum_{i \in \text{brand } c} \sum_{k=1}^{10} x_i^k \le 2
+\]
+
+- Au moins 1 produit sponsorisé dans le top 10 :
+
+\[
+\sum_{i \in \text{sponsor}} \sum_{k=1}^{10} x_i^k \ge 1
+\]
+
+Cette dernière contrainte est équivalente à avoir maximum 9 produits non sponsorisé dans le top 10, soit :
+\[
+\sum_{i \in \text{no sponsor}} \sum_{k=1}^{10} x_i^k \le 9
+\]
+
+
+# 2. Approche heuristique 
 
 
 
-# Approche heuristique 
+# 3. Solution 1 : programmation dynamique 
 
 
 
-# Solution 1 : programmation dynamique 
+# 4. Solution 2 : programmation dynamique et tas 
 
 
 
-# Solution 2 : programmation dynamique et tas 
+# 5. Comparaison des résultats 
 
 
 
-# Comparaison des résultats 
-
-
-
-# Complexité des algorithmes (par le calcul)
-
-
-
-# Temps de calcul
+# 6. Complexité des algorithmes (par le calcul)
 
 Voici nos 4 algorithmes :
 
@@ -58,11 +158,11 @@ Pour chacun, nous analysons :
   - \(M\) : borne combinatoire théorique des états
 
 
-## 1. Algorithme naïf en R
+## 6.1. Algorithme naïf en R
 
 Dans cette algorithme, à chaque étape on explore tous les candidats restants pour vérifier la faisabilité des groupes avant de choisir celui au score maximal.
 
-### 1.1 Complexité théorique
+### 6.1.1 Complexité théorique
 
 On rappelle :
 
@@ -98,11 +198,11 @@ T(n) = \Theta(G n^2)
 \]
 
 
-## 2. Algorithme dynamique en R
+## 6.2. Algorithme dynamique en R
 
 Cet algorithme construit un tableau de DP associant à chaque état un score maximal.
 
-### 2.1 Rappels sur les états
+### 6.2.1 Rappels sur les états
 
 Un état est défini par :
 
@@ -118,7 +218,7 @@ Nombre théorique maximal d’états :
 M = \prod_{g=1}^G ( \text{max\_cap}_g + 1 )
 \]
 
-### 2.2 Complexité
+### 6.2.2 Complexité
 
 **Meilleur cas**
 
@@ -150,7 +250,7 @@ T(n) = \Theta(n k m S)
 
 
 
-## 3. Algorithme dynamique C++ (exact)
+## 6.3. Algorithme dynamique C++ (exact)
 
 Version C++ optimisée utilisant `unordered_map` mais explorant encore **tous les états utiles**.
 
@@ -200,11 +300,11 @@ Même ordre de grandeur que R :
 
 
 
-## 4. Algorithme dynamique amélioré C++ (Beam Search)
+## 6.4. Algorithme dynamique amélioré C++ (Beam Search)
 
 On conserve uniquement les **beam_size meilleurs états** à chaque niveau de DP.
 
-### Complexité
+### 6.4.1. Complexité
 
 **Meilleur cas (beam_size = 1)**
 
@@ -240,7 +340,7 @@ avec un \(S\) modéré et contrôlé par `beam_size`.
 
 
 
-## 5. Graphiques comparatifs
+## 6.5. Graphiques comparatifs
 
 ```{r message=FALSE, warning=FALSE}
 library(ggplot2)
@@ -276,7 +376,7 @@ ggplot(df_long, aes(n, T, color=algo)) +
 ```
 
 
-
+# 7. Temps de calcul 
 
 ```{r}
 
