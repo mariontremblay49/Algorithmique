@@ -3,39 +3,278 @@ title: "Evaluation des algorithmes de ranking pour ..."
 output: pdf_document
 date: "2025-12-08"
 author: "Flavie Bertrand et Marion Tremblay" 
+header-includes:
+  - \usepackage{amsmath}
+  - \usepackage{amssymb}
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Description du problème et objectif
+# Description du problème et objectif
 
 
 
-## Approche heuristique 
+# Approche heuristique 
 
 
 
-## Solution 1 : programmation dynamique 
+# Solution 1 : programmation dynamique 
 
 
 
-## Solution 2 : programmation dynamique et tas 
+# Solution 2 : programmation dynamique et tas 
 
 
 
-## Comparaison des résultats 
+# Comparaison des résultats 
 
 
 
-## Complexité des algorithmes (par le calcul)
+# Complexité des algorithmes (par le calcul)
 
 
 
-## Temps de calcul
+# Temps de calcul
 
-On étudie ici le temps de complexité des algorithmes en fonction ...
+Voici nos 4 algorithmes :
+
+1. **Algorithme naïf R**
+2. **Algorithme dynamique R**
+3. **Algorithme dynamique C++ (DP exacte)**
+4. **Algorithme dynamique C++ amélioré (beam search)**
+
+Pour chacun, nous analysons :
+
+- La complexité **temps** (meilleur, pire, moyenne)
+- La complexité **mémoire**
+- Les paramètres en jeu :  
+  - \(n\) : nombre d’items  
+  - \(G\) : nombre de groupes  
+  - \(k\) : cardinal maximal  
+  - \(m\) : nombre de groupes actifs  
+  - \(S\) : nombre d’états atteints en DP  
+  - \(M\) : borne combinatoire théorique des états
+
+
+## 1. Algorithme naïf en R
+
+Dans cette algorithme, à chaque étape on explore tous les candidats restants pour vérifier la faisabilité des groupes avant de choisir celui au score maximal.
+
+### 1.1 Complexité théorique
+
+On rappelle :
+
+- Vérification faisabilité groupe = coût \(\Theta(G)\)
+- Recherche du max = \(\Theta(n)\)
+
+**Meilleur cas**
+
+\[
+T(n) = \Theta(n \log n)
+\]
+
+(le tri initial domine si la sélection s’arrête tôt ou si \(k=O(1)\)).
+
+**Pire cas**
+
+\[
+T(n) = \Theta(G n^2)
+\]
+
+(ou \(\Theta(n^2)\) si \(G = O(1)\)).
+
+**Cas moyen**
+
+\[
+T(n) = \Theta(G n^2)
+\]
+
+**Espace**
+
+\[
+\Theta(n + m)
+\]
+
+
+## 2. Algorithme dynamique en R
+
+Cet algorithme construit un tableau de DP associant à chaque état un score maximal.
+
+### 2.1 Rappels sur les états
+
+Un état est défini par :
+
+\[
+\text{état} = (s, c_1, c_2, ..., c_G)
+\]
+
+où \(c_g\) est le nombre d’items du groupe \(g\).
+
+Nombre théorique maximal d’états :
+
+\[
+M = \prod_{g=1}^G ( \text{max\_cap}_g + 1 )
+\]
+
+### 2.2 Complexité
+
+**Meilleur cas**
+
+\[
+T(n) = \Theta(nk)
+\]
+
+si très peu d’états sont peuplés.
+
+**Pire cas**
+
+\[
+T(n) = \Theta(n k S m)
+\]
+
+avec \(S=M\), donc exponentiel en \(G\).
+
+**Cas moyen**
+
+\[
+T(n) = \Theta(n k m S)
+\]
+
+**Espace**
+
+\[
+\Theta(n m + n k S)
+\]
+
+
+
+## 3. Algorithme dynamique C++ (exact)
+
+Version C++ optimisée utilisant `unordered_map` mais explorant encore **tous les états utiles**.
+
+**Meilleur cas**
+
+\[
+T(n) = O(n k G)
+\]
+
+Si \(S=O(1)\), très petit nombre d’états actifs.
+
+Si en plus \(k=O(1), G=O(1)\) :
+
+\[
+T(n)=\Theta(n)
+\]
+
+**Pire cas**
+
+\[
+T(n)=\Theta(n k M G)
+\]
+
+où :
+
+\[
+M = \prod_{g=1}^G (\text{max\_cap}_g + 1)
+\]
+
+exponentiel en \(G\).
+
+**Cas moyen**
+
+\[
+T(n)=O(n k S G)
+\]
+
+avec \(S\ll M\) en pratique.
+
+**Espace**
+
+Même ordre de grandeur que R :
+
+\[
+\Theta(k S G)
+\]
+
+
+
+## 4. Algorithme dynamique amélioré C++ (Beam Search)
+
+On conserve uniquement les **beam_size meilleurs états** à chaque niveau de DP.
+
+### Complexité
+
+**Meilleur cas (beam_size = 1)**
+
+\[
+T(n)=O(n k G)
+\]
+
+**Pire cas**
+
+\[
+T(n)=O\left(n k S (G + \log S)\right)
+\]
+
+où
+
+\[
+S = \min\left(\text{beam\_size},\; \prod_{g=1}^G (\text{max\_cap}_g+1) \right)
+\]
+
+**Cas moyen**
+
+\[
+T(n)=O(n k S G)
+\]
+
+avec un \(S\) modéré et contrôlé par `beam_size`.
+
+**Espace**
+
+\[
+\Theta(k S G)
+\]
+
+
+
+## 5. Graphiques comparatifs
+
+```{r message=FALSE, warning=FALSE}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+n <- seq(100, 2000, length.out = 200)
+G <- 5
+k <- 20
+S <- 200
+M <- (3+1)^G
+
+df <- data.frame(
+  n = n,
+  naive = n^2 * G,
+  dp_r = n * k * S,
+  dp_cpp = n * k * S * G,
+  dp_beam = n * k * S * (G + log(S))
+)
+
+df_long <- df %>%
+  pivot_longer(-n, names_to="algo", values_to="T")
+
+ggplot(df_long, aes(n, T, color=algo)) +
+  geom_line(size=1) +
+  scale_y_log10() +
+  theme_minimal() +
+  labs(
+    title="Comparaison asymptotique des 4 algorithmes",
+    y="Temps (échelle logarithmique)",
+    x="n"
+  )
+```
+
 
 
 
