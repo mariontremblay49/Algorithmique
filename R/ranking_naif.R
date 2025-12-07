@@ -1,75 +1,113 @@
 
-ranking_naif_max <- function(data, k, max_par_groupe) {
+ranking_naif_max <- function(data, k, max_par_groupe, poids_positions = NULL) {
   #---------------------------------------------
-  # NAIVE GREEDY ALGORITHM: CONSTRAINED RANKING
+  # NAIVE GREEDY ALGORITHM: CONSTRAINED WEIGHTED RANKING
   #
-  # Goal:
-  #   Select up to k elements to maximize total score,
-  #   while respecting a maximum number of elements per group.
+  # Objectif:
+  #   Assigner k éléments aux positions 1 à k pour maximiser le score pondéré,
+  #   tout en respectant les contraintes de groupes.
+  #   Approche gloutonne : à chaque position, choisir l'élément qui maximise
+  #   le gain immédiat (w_p × score_i).
   #
-  # Inputs:
-  #   data : data.frame containing at least:
-  #           - a "score" column
-  #           - a "groupes" column (string with one or more groups separated by commas)
-  #   k : maximum number of elements to select
-  #   max_par_groupe : named list giving the maximum allowed per group (e.g., list(A=2, B=3, C=1))
+  # Entrées:
+  #   data : data.frame contenant au moins:
+  #           - colonne "score"
+  #           - colonne "groupes" (groupes séparés par virgules)
+  #   k : nombre de positions à remplir
+  #   max_par_groupe : liste nommée (ex: list(A=2, B=3, C=1))
+  #   poids_positions : vecteur des poids pour chaque position (défaut: tous à 1)
   #
-  # Output:
-  #   data.frame of selected elements, sorted by descending score
+  # Sortie:
+  #   Liste contenant:
+  #     - selected_items: data.frame avec position et score pondéré
+  #     - best_score: score total
   #---------------------------------------------
 
-  # Step 1: sort elements by descending score (best first)
-  data <- data[order(-data$score), ]
+  # Poids par défaut si non fournis
+  if (is.null(poids_positions)) {
+    poids_positions <- rep(1, k)
+  } else if (length(poids_positions) != k) {
+    stop("Le vecteur poids_positions doit avoir exactement k éléments")
+  }
 
-  # Step 2: initialize tracking structures
-  selection <- data.frame()  # will contain chosen elements
-  compte_groupes <- as.list(rep(0, length(max_par_groupe)))  # counter for each group
+  # Initialisation
+  selection <- data.frame()
+  indices_utilises <- integer(0)  # indices des éléments déjà assignés
+  compte_groupes <- as.list(rep(0, length(max_par_groupe)))
   names(compte_groupes) <- names(max_par_groupe)
+  score_total <- 0
 
-  # Step 3: main loop
-  # Continue until k elements are selected or no valid candidates remain
-  while (nrow(selection) < k && nrow(data) > 0) {
+  # Pour chaque position p de 1 à k
+  for (p in 1:k) {
+    w_p <- poids_positions[p]
 
-    # Step 3.1: check for each remaining element if it is selectable
-    # An element is "possible" if for all its groups,
-    # the group's maximum has not been reached yet
-    possibles <- sapply(1:nrow(data), function(i) {
-      groupes_i <- unlist(strsplit(data$groupes[i], ","))  # extract groups of element i
-      # Check the constraint for each group
-      all(sapply(groupes_i, function(g) {
-        # If group is not in the constraints list -> no limit (Inf)
-        is.null(max_par_groupe[[g]]) || compte_groupes[[g]] < max_par_groupe[[g]]
-      }))
-    })
+    # Trouver les éléments candidats pour cette position
+    # Un élément est candidat s'il n'a pas encore été utilisé
+    # et si ses contraintes de groupes sont respectées
+    meilleur_idx <- NULL
+    meilleur_gain <- -Inf
 
-    # Step 3.2: if no element is selectable, stop
-    if (!any(possibles)) break
+    for (i in 1:nrow(data)) {
+      # Vérifier si l'élément i n'est pas déjà utilisé
+      if (i %in% indices_utilises) next
 
-    # Step 3.3: among possible elements, choose the one with the highest score
-    # (the one that maximizes total score at this moment)
-    meilleur <- which.max(ifelse(possibles, data$score, -Inf))
-    choix <- data[meilleur, , drop = FALSE]
+      # Extraire les groupes de l'élément i
+      groupes_i <- trimws(unlist(strsplit(data$groupes[i], ",")))
 
-    # Step 3.4: add this element to the selection
+      # Vérifier les contraintes de groupes
+      respect_contraintes <- TRUE
+      for (g in groupes_i) {
+        if (!is.null(max_par_groupe[[g]])) {
+          if (compte_groupes[[g]] >= max_par_groupe[[g]]) {
+            respect_contraintes <- FALSE
+            break
+          }
+        }
+      }
+
+      if (!respect_contraintes) next
+
+      # Calculer le gain de cet élément à cette position
+      gain_i <- w_p * data$score[i]
+
+      # Garder le meilleur
+      if (gain_i > meilleur_gain) {
+        meilleur_gain <- gain_i
+        meilleur_idx <- i
+      }
+    }
+
+    # Si aucun élément n'est sélectionnable, arrêter
+    if (is.null(meilleur_idx)) {
+      warning(paste("Impossible de remplir toutes les", k, "positions.",
+                    "Seulement", p-1, "positions remplies."))
+      break
+    }
+
+    # Ajouter l'élément sélectionné
+    choix <- data[meilleur_idx, , drop = FALSE]
+    choix$position <- p
+    choix$poids_position <- w_p
+    choix$score_pondere <- meilleur_gain
+
     selection <- rbind(selection, choix)
+    indices_utilises <- c(indices_utilises, meilleur_idx)
+    score_total <- score_total + meilleur_gain
 
-    # Step 3.5: update counters for affected groups
-    groupes_choix <- unlist(strsplit(choix$groupes, ","))
+    # Mettre à jour les compteurs de groupes
+    groupes_choix <- trimws(unlist(strsplit(choix$groupes, ",")))
     for (g in groupes_choix) {
       if (!is.null(compte_groupes[[g]])) {
         compte_groupes[[g]] <- compte_groupes[[g]] + 1
       }
     }
-
-    # Step 3.6: remove the chosen element from remaining candidates
-    data <- data[-meilleur, ]
   }
 
-  # Step 4: sort the final selection by descending score for clean display
-  selection <- selection[order(-selection$score), ]
-  rownames(selection) <- NULL  # clean up row names
+  # Nettoyer les noms de lignes
+  rownames(selection) <- NULL
 
-  # Step 5: return final result
-  return(selection)
+  return(list(
+    selected_items = selection,
+    best_score = score_total
+  ))
 }
-
