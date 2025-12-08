@@ -127,7 +127,46 @@ Cette dernière contrainte est équivalente à avoir maximum 9 produits non spon
 
 # 2. Approche heuristique 
 
+L’approche **gloutonne** constitue une première stratégie simple pour résoudre le problème de ranking pondéré avec contraintes de groupes.
 
+
+### Principe algorithmique
+
+1. Initialiser les compteurs de chaque groupe à 0 et liste des éléments sélectionnés vide.
+
+2. Pour chaque position (p = 1,\dots,k) :
+
+   * Considérer les éléments non encore sélectionnés respectant les contraintes de groupes.
+   * Choisir l’élément avec le gain immédiat maximal $w_p \cdot s_i$
+   * Mettre à jour les compteurs de groupes et le score total.
+
+3. Arrêt si aucune sélection possible pour une position ou si toutes les positions sont remplies.
+
+Cette méthode est **très rapide** et facile à implémenter, mais elle ne garantit **pas d’optimalité globale**, car elle ne considère pas les effets futurs de chaque choix.
+
+### Exemple illustratif
+
+```{r, message=FALSE, echo=FALSE}
+data <- data.frame(
+  id = 1:10,
+  score = c(1, 9, 8, 7, 6, 5, 4, 3, 2, 10),
+  groupes = c("C", "A", "B", "B", "C", "A,B", "C", "A", "B", "A")
+)
+
+max_par_groupe <- list(A = 2, B = 2, C = 1)
+poids <- c(5,4,3,2,1)
+k <- 5
+
+res_naif <- ranking_naif_max(data, k, max_par_groupe, poids_positions = poids)
+
+res_naif$selected_items
+res_naif$best_score
+```
+
+
+* L’algorithme privilégie **les éléments les mieux notés pour les premières positions**.
+* Les contraintes de groupe peuvent limiter le choix, ce qui peut conduire à **des choix sous-optimaux pour les positions suivantes**.
+* Malgré ses limites, cette approche **rapide et simple** est utile pour obtenir une **baseline** ou comparer avec des méthodes plus sophistiquées comme la programmation dynamique exacte ou le Beam Search.
 
 
 
@@ -149,10 +188,6 @@ Chaque état est défini par :
 Pour chaque état, on garde le meilleur score pondéré atteint.
 
 À la fin, on récupère l’état final avec le score total maximal et la sélection correspondante.
-
-Avantages :
-- Garantit d’obtenir la solution optimale, contrairement aux approches heuristiques.
-- Flexible : on peut changer les poids par position ou les contraintes de groupes facilement.
 
 ## Exemple concret
 
@@ -213,16 +248,70 @@ ggplot(df, aes(x = factor(position), y = score_pondere)) +
   theme_minimal()
 ```
 
-Le graphique montre que les positions les mieux pondérées (1 et 2) contribuent le plus au score total.
-
-Permet de visualiser l’impact de chaque choix sur le score global.
-
-
-
-
+Le graphique montre que les positions les mieux pondérées (1 et 2) contribuent le plus au score total. Il permet de visualiser l’impact de chaque choix sur le score global.
 
 
 # 4. Solution 2 : programmation dynamique et tas 
+
+Pour des ensembles de données plus volumineux, la **programmation dynamique exacte** peut devenir très coûteuse en temps et en mémoire, car le nombre d’états possibles croît de manière exponentielle avec le nombre de positions (k) et le nombre de groupes (G).
+
+Pour pallier cette limitation, nous utilisons une approche **approximate avec Beam Search**, elle conserve uniquement beam_size meilleurs états à chaque niveau, on a alors une approximation proche de l’optimum.
+
+### Principe algorithmique
+
+1. Représentation des états, chaque état est défini par :
+
+   * le score cumulé des éléments sélectionnés,
+   * le compteur d’éléments choisis par groupe,
+   * une clé unique codant ces compteurs.
+
+2. Trier les éléments par score décroissant.
+
+3. Pour chaque position :
+
+   * Pour chaque état conservé, on génère de nouveaux états en ajoutant chaque élément disponible respectant les contraintes.
+   * On ajoute ces états dans un max-heap et ne garder que beam_size meilleurs états (pruning).
+
+3. À la fin, on reconstruit la sélection à partir du meilleur état final.
+
+La largeur du beam (`beam_size`) permet de **contrôler le compromis précision / performance**.
+
+
+### Un exemple
+
+On reprend l’exemple précédent des 10 produits, avec un **beam de taille 5** :
+
+```{r, echo=FALSE, message=FALSE}
+library(Rcpp)
+
+data <- data.frame(
+  id = 1:10,
+  score = c(1, 9, 8, 7, 6, 5, 4, 3, 2, 10),
+  groupes = c("C", "A", "B", "B", "C", "A,B", "C", "A", "B", "A")
+)
+
+max_par_groupe <- list(A=2, B=2, C=1)
+k <- 5
+
+res <- ranking_max_dp_heap_cpp(data, k, max_par_groupe, beam_size = 5)
+print(res)
+```
+
+* `res$best_score` donne le score cumulé approximatif.
+* `res$selected_items` contient la liste des éléments sélectionnés.
+* Le champ `approximation` indique si la solution a été tronquée par le beam.
+
+* Même avec un **beam très limité**, l’algorithme tend à **sélectionner les éléments avec les meilleurs scores** tout en respectant les contraintes de groupe.
+* La **programmation dynamique combinée à un heap** permet de **garder les meilleures solutions intermédiaires** sans générer tous les états possibles, ce qui est crucial pour de grands ensembles de données.
+* Ce compromis entre **exactitude et performance** est particulièrement utile dans les systèmes de recommandation ou e-commerce où le calcul doit rester rapide.
+
+
+
+
+
+
+
+
 
 
 
