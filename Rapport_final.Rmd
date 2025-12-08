@@ -10,6 +10,10 @@ header-includes:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(Ranking)
+library(kableExtra)
+library(dplyr)
+library(ggplot2)
 ```
 
 # 1. Description du problème et objectif
@@ -20,10 +24,10 @@ On considère :
 
 - \( i \in \{1, 2, \ldots, n\} \) : l'élément i
 - un score associé à chaque élément : \( s_i \in \mathbb{R} \)
-- une variable binaire \( x_{i,p} \in \{0,1\} \) qui vaut 1 si l’élément \( i \) est placé à la position \( p \) (0 sinon)
+- une variable binaire \( x_{i,p} \in \{0,1\} \) qui vaut 1 si l'élément \( i \) est placé à la position \( p \) (0 sinon)
 - un poids \( w_p \) associé à la position \( p \)
 
-L’objectif est de déterminer un classement des \( k \) premiers éléments maximisant le score total.
+L'objectif est de déterminer un classement des \( k \) premiers éléments maximisant le score total.
 
 \[
 \max_x \sum_{i=1}^n \sum_{p=1}^k w_p\, s_i\, x_{i,p}
@@ -90,7 +94,7 @@ où :
 \sum_{i=1}^{n} x_i^k = 1 \quad \forall k
 \]
 
-- Un produit ne peut être affiché qu’une seule fois :
+- Un produit ne peut être affiché qu'une seule fois :
 
 \[
 \sum_{k=1}^{10} x_i^k \le 1 \quad \forall i
@@ -127,7 +131,7 @@ Cette dernière contrainte est équivalente à avoir maximum 9 produits non spon
 
 # 2. Approche heuristique 
 
-L’approche **gloutonne** constitue une première stratégie simple pour résoudre le problème de ranking pondéré avec contraintes de groupes.
+L'approche **gloutonne** constitue une première stratégie simple pour résoudre le problème de ranking pondéré avec contraintes de groupes.
 
 
 ### Principe algorithmique
@@ -137,12 +141,12 @@ L’approche **gloutonne** constitue une première stratégie simple pour résou
 2. Pour chaque position (p = 1,\dots,k) :
 
    * Considérer les éléments non encore sélectionnés respectant les contraintes de groupes.
-   * Choisir l’élément avec le gain immédiat maximal $w_p \cdot s_i$
+   * Choisir l'élément avec le gain immédiat maximal $w_p \cdot s_i$
    * Mettre à jour les compteurs de groupes et le score total.
 
 3. Arrêt si aucune sélection possible pour une position ou si toutes les positions sont remplies.
 
-Cette méthode est **très rapide** et facile à implémenter, mais elle ne garantit **pas d’optimalité globale**, car elle ne considère pas les effets futurs de chaque choix.
+Cette méthode est **très rapide** et facile à implémenter, mais elle ne garantit **pas d'optimalité globale**, car elle ne considère pas les effets futurs de chaque choix.
 
 ### Exemple illustratif
 
@@ -164,7 +168,7 @@ res_naif$best_score
 ```
 
 
-* L’algorithme privilégie **les éléments les mieux notés pour les premières positions**.
+* L'algorithme privilégie **les éléments les mieux notés pour les premières positions**.
 * Les contraintes de groupe peuvent limiter le choix, ce qui peut conduire à **des choix sous-optimaux pour les positions suivantes**.
 * Malgré ses limites, cette approche **rapide et simple** est utile pour obtenir une **baseline** ou comparer avec des méthodes plus sophistiquées comme la programmation dynamique exacte ou le Beam Search.
 
@@ -182,25 +186,22 @@ Pour résoudre le problème de ranking sous contraintes de groupe et de poids po
 
 Chaque état est défini par :
 - le nombre de positions déjà remplies,
-- le nombre d’éléments choisis par groupe (compteurs de groupes).
-- À chaque étape (position p), on essaie tous les éléments possibles qui respectent les contraintes de groupes et qui n’ont pas déjà été choisis.
+- le nombre d'éléments choisis par groupe (compteurs de groupes).
+- À chaque étape (position p), on essaie tous les éléments possibles qui respectent les contraintes de groupes et qui n'ont pas déjà été choisis.
 
 Pour chaque état, on garde le meilleur score pondéré atteint.
 
-À la fin, on récupère l’état final avec le score total maximal et la sélection correspondante.
+À la fin, on récupère l'état final avec le score total maximal et la sélection correspondante.
 
 ## Exemple concret
 
-On applique l’algorithme sur un petit jeu de données illustratif :
+On applique l'algorithme sur un petit jeu de données illustratif :
 - 10 produits avec un score utilisateur (score) et un ou plusieurs groupes (groupes).
 - Contraintes : max 2 produits du groupe A, 2 du groupe B, 1 du groupe C.
 - Poids décroissants pour les positions : 5, 4, 3, 2, 1.
 
-```{r, echo=FALSE, message=FALSE}
-library(kableExtra)
-library(dplyr)
-library(ggplot2)
 
+```{r, echo=FALSE, message=FALSE}
 # Données d'exemple
 data <- data.frame(
   id = 1:10,
@@ -217,26 +218,30 @@ poids <- c(5, 4, 3, 2, 1)
 # Résolution
 result <- ranking_max(data, k = 5, max_par_groupe, poids_positions = poids)
 
-result$selected_items |>
-  select(position, id, score, group_list, poids_position, score_pondere) |>
-  kable(col.names = c("Position", "ID", "Score", "Groupe",
-                      "Poids position", "Score pondéré"),
-        align = "c",
-        caption = "Tableau des éléments sélectionnés par l’algorithme ranking_max") |>
+result$selected_items %>%
+  select(position, id, score, group_list, poids_position, score_pondere) %>%
+  kable(
+    format = "latex",              # forcer le format LaTeX
+    booktabs = TRUE,               # plus joli pour LaTeX
+    align = "c",
+    col.names = c("Position", "ID", "Score", "Groupe", "Poids position", "Score pondéré"),
+    caption = "Tableau des éléments sélectionnés par l'algorithme ranking max",
+    escape = TRUE                  # <- très important pour échapper les caractères spéciaux
+  ) %>%
   kable_styling(
-    bootstrap_options = c("striped", "hover", "condensed"),
-    full_width = FALSE,
-    position = "center"
-  ) |>
-  row_spec(0, bold = TRUE) |>
-  column_spec(1, bold = TRUE) |>
+    latex_options = c("striped", "hold_position"),  # bootstrap_options = c(...) est pour HTML, ici LaTeX
+    full_width = FALSE
+  ) %>%
+  row_spec(0, bold = TRUE) %>%
+  column_spec(1, bold = TRUE) %>%
   column_spec(6, bold = TRUE)
+
 ```
 
 Score total = 130
 
 Visualisation : contribution par position
-```{r, echo=FALSE, message=FALSE}
+```{r, out.width='80%', echo=FALSE, message=FALSE}
 result$score_pondere <- result$score * result$poids
 
 df <- result$selected_items
@@ -248,21 +253,21 @@ ggplot(df, aes(x = factor(position), y = score_pondere)) +
   theme_minimal()
 ```
 
-Le graphique montre que les positions les mieux pondérées (1 et 2) contribuent le plus au score total. Il permet de visualiser l’impact de chaque choix sur le score global.
+Le graphique montre que les positions les mieux pondérées (1 et 2) contribuent le plus au score total. Il permet de visualiser l'impact de chaque choix sur le score global.
 
 
 # 4. Solution 2 : programmation dynamique et tas 
 
-Pour des ensembles de données plus volumineux, la **programmation dynamique exacte** peut devenir très coûteuse en temps et en mémoire, car le nombre d’états possibles croît de manière exponentielle avec le nombre de positions (k) et le nombre de groupes (G).
+Pour des ensembles de données plus volumineux, la **programmation dynamique exacte** peut devenir très coûteuse en temps et en mémoire, car le nombre d'états possibles croît de manière exponentielle avec le nombre de positions (k) et le nombre de groupes (G).
 
-Pour pallier cette limitation, nous utilisons une approche **approximate avec Beam Search**, elle conserve uniquement beam_size meilleurs états à chaque niveau, on a alors une approximation proche de l’optimum.
+Pour pallier cette limitation, nous utilisons une approche **approximate avec Beam Search**, elle conserve uniquement beam_size meilleurs états à chaque niveau, on a alors une approximation proche de l'optimum.
 
 ### Principe algorithmique
 
 1. Représentation des états, chaque état est défini par :
 
    * le score cumulé des éléments sélectionnés,
-   * le compteur d’éléments choisis par groupe,
+   * le compteur d'éléments choisis par groupe,
    * une clé unique codant ces compteurs.
 
 2. Trier les éléments par score décroissant.
@@ -279,9 +284,9 @@ La largeur du beam (`beam_size`) permet de **contrôler le compromis précision 
 
 ### Un exemple
 
-On reprend l’exemple précédent des 10 produits, avec un **beam de taille 5** :
+On reprend l'exemple précédent des 10 produits, avec un **beam de taille 5** :
 
-```{r, echo=FALSE, message=FALSE}
+```{r, warning=FALSE, echo=FALSE, message=FALSE}
 library(Rcpp)
 
 data <- data.frame(
@@ -301,7 +306,7 @@ print(res)
 * `res$selected_items` contient la liste des éléments sélectionnés.
 * Le champ `approximation` indique si la solution a été tronquée par le beam.
 
-* Même avec un **beam très limité**, l’algorithme tend à **sélectionner les éléments avec les meilleurs scores** tout en respectant les contraintes de groupe.
+* Même avec un **beam très limité**, l'algorithme tend à **sélectionner les éléments avec les meilleurs scores** tout en respectant les contraintes de groupe.
 * La **programmation dynamique combinée à un heap** permet de **garder les meilleures solutions intermédiaires** sans générer tous les états possibles, ce qui est crucial pour de grands ensembles de données.
 * Ce compromis entre **exactitude et performance** est particulièrement utile dans les systèmes de recommandation ou e-commerce où le calcul doit rester rapide.
 
