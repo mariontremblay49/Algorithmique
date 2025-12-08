@@ -10,10 +10,18 @@ header-includes:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-library(Ranking)
+
 library(kableExtra)
 library(dplyr)
 library(ggplot2)
+
+if (!requireNamespace("Ranking", quietly = TRUE)) {
+  if (!requireNamespace("remotes", quietly = TRUE))
+    install.packages("remotes")
+  remotes::install_github("mariontremblay49/Algorithmique")
+}
+
+library(Ranking)
 ```
 
 # 1. Description du problème et objectif
