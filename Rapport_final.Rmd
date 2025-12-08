@@ -372,11 +372,17 @@ Voici nos 4 algorithmes :
 
 Pour chacun, nous analysons la complexité temps (meilleur, pire, moyenne)
 Les paramètres en jeu sont :  
+
 * **n** : nombre d'items (taille de l'entrée)
+
 * **G** : nombre de groupes
+
 * **k** : nombre de positions à remplir
+
 * **S** : nombre d'états effectivement atteints dans la DP
+
 * **M** : nombre théorique maximal d'états = $\prod_{g=1}^G (\text{max\_cap}_g + 1)$
+
 * **$\bar{g}$** : nombre moyen de groupes par item
 
 
@@ -799,9 +805,6 @@ ggplot(df_impact_long, aes(x = G, y = operations, color = algo)) +
 | Recherche d'optimum prouvé | **DP C++** si faisable | Exact mais peut échouer |
 
 
-$$
-\text{Si } M = \prod_{g=1}^G (\text{max\_cap}_g + 1) > 100000 \Rightarrow \text{Utiliser Beam Search}
-$$
 
 # 7. Temps de calcul 
 
