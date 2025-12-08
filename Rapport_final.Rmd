@@ -66,72 +66,63 @@ On impose que chaque groupe \( G_g \) apparaisse au plus \( \alpha_g \) fois dan
 
 ### 1.2.1. Contexte 
 
-On applique ce problème pour sélectionner les 10 produits les plus pertinents pour les afficher sur la page d'accuei d'un site de e-commerce. Chaque produit a un score $s_i$ correspondant à la moyenne des notes données par les utilisateurs. On souhaite maximiser ce score tout en respectant certaines contraintes :
-- Diversité des catégories : pas plus de 3 produits de la même catégorie 
-- Limiter la domination d'une marque : pas plus de 2 produits de la même marque 
+On applique ce problème pour sélectionner les 5 produits les plus pertinents pour les afficher sur la page d'accuei d'un site de e-commerce. Chaque produit a un score $s_i$ correspondant à la moyenne des notes données par les utilisateurs. On souhaite maximiser ce score tout en respectant certaines contraintes :
+- Diversité des catégories : pas plus de 2 produits de la même catégorie 
 - Contrainte marketing : au moins un produit sponsorisé doit apparaître dans le top 10
 
-Pour répondre à ce problème on utilise la base de données ...
+Pour répondre à ce problème on utilise la base de données des retours produits du site Amazon datant de 2018. Nous avons sélectionné un échantillon de 250 produits de cette base de données. Nous avons généré une colonne en plus pour réaliser la contrainte marketing, en associant 15% des produits de la base de données à des produits sponsorisés.
 
 ### 1.2.2. Formulation mathématique 
 
 La fonction objectif est :
 
 \[
-\max \sum_{k=1}^{10} w_k \, s_{\pi(k)}
+\max_x \sum_{i=1}^n \sum_{p=1}^k w_p\, s_i\, x_{i,p}
 \]
 
 où :
 
-- \(\pi(k)\) est le produit placé à la position \(k\),
-- \(w_k\) est le poids associé à la position \(k\).
+- \(x_{i,p}\) est une variable binaire qui vaut 1 si l'élément \( i \) est placé à la position \( p \) (0 sinon)
+- \(w_p\) est le poids associé à la position \(p\): il vaut 5 à la position puis est décrémenter de 1 à chaque position suivante. 
 
 **Sous contraintes**
 
 - Chaque position contient exactement un produit :
 
 \[
-\sum_{i=1}^{n} x_i^k = 1 \quad \forall k
+\sum_{i=1}^{n} x_{i,p} = 1 \quad \forall p
 \]
 
 - Un produit ne peut être affiché qu'une seule fois :
 
 \[
-\sum_{k=1}^{10} x_i^k \le 1 \quad \forall i
+\sum_{k=1}^{5} x_{i,k} \le 1 \quad \forall i
 \]
 
-- Maximum 3 produits par catégorie :
+- Maximum 2 produits par catégorie :
 
 \[
-\sum_{i \in \text{cat } c} \sum_{k=1}^{10} x_i^k \le 3
+\sum_{i \in \text{cat } c} \sum_{p=1}^{5} x_{i^p} \le 2
 \]
 
-- Maximum 2 produits par marque : 
+
+- Au moins 1 produit sponsorisé dans le top 5 :
 
 \[
-\sum_{i \in \text{brand } c} \sum_{k=1}^{10} x_i^k \le 2
+\sum_{i \in \text{sponsor}} \sum_{p=1}^{5} x_{i,p} \ge 1
 \]
 
-- Au moins 1 produit sponsorisé dans le top 10 :
-
+Cette dernière contrainte est équivalente à avoir maximum 4 produits non sponsorisé dans le top 5, soit :
 \[
-\sum_{i \in \text{sponsor}} \sum_{k=1}^{10} x_i^k \ge 1
+\sum_{i \in \text{no sponsor}} \sum_{p=1}^{5} x_{i,p} \le 4
 \]
-
-Cette dernière contrainte est équivalente à avoir maximum 9 produits non sponsorisé dans le top 10, soit :
-\[
-\sum_{i \in \text{no sponsor}} \sum_{k=1}^{10} x_i^k \le 9
-\]
-
-
-
 
 
 
 
 # 2. Approche heuristique 
 
-L'approche **gloutonne** constitue une première stratégie simple pour résoudre le problème de ranking pondéré avec contraintes de groupes.
+L'approche **heuristique** constitue une première stratégie simple pour résoudre le problème de ranking pondéré avec contraintes de groupes.
 
 
 ### Principe algorithmique
@@ -782,7 +773,7 @@ poids_positions <- seq(k, 1, by = -1)
 # Création des listes de contraintes
 liste_cat <- setNames(as.list(rep(2, length(unique(df$category)))),
                       unique(df$category))
-max_par_groupe <- c(liste_cat, list(Not_sponsored = 9))
+max_par_groupe <- c(liste_cat, list(Not_sponsored = 4))
 
 for (i in 1:length(n))
 {
@@ -853,7 +844,7 @@ res2 <- data.frame(
 )
 plot(log(res2$n), log(res2$time), pch=16,
      xlab="Taille des séquences : n (log)",
-     ylab="Temps moyen (s, log)",
+     ylab="Temps (s, log)",
      main="Algo dp (R) (log-log)")
 abline(lm(log(time) ~ log(n), data=res2), col="red")
 
@@ -864,7 +855,7 @@ res3 <- data.frame(
 )
 plot(log(res3$n), log(res3$time), pch=16,
      xlab="Taille des séquences : n (log)",
-     ylab="Temps moyen (s, log)",
+     ylab="Temps (s, log)",
      main="Algo dp (C++) (log-log)")
 abline(lm(log(time) ~ log(n), data=res3), col="red")
 
@@ -875,7 +866,7 @@ res4 <- data.frame(
 )
 plot(log(res4$n), log(res4$time), pch=16,
      xlab="Taille des séquences : n (log)",
-     ylab="Temps moyen (s, log)",
+     ylab="Temps (s, log)",
      main="Algo dp avec tas (C++) (log-log)")
 abline(lm(log(time) ~ log(n), data=res4), col="red")
 
