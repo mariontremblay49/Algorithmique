@@ -142,18 +142,35 @@ Cette méthode est **très rapide** et facile à implémenter, mais elle ne gara
 ### Exemple illustratif
 
 ```{r, message=FALSE, echo=FALSE}
-data <- data.frame(
-  id = 1:10,
-  score = c(1, 9, 8, 7, 6, 5, 4, 3, 2, 10),
-  groupes = c("C", "A", "B", "B", "C", "A,B", "C", "A", "B", "A")
+# Paramètres
+k <- 5
+df <- read.csv("amazon_products_250.csv", stringsAsFactors = FALSE)
+df$sponsored <- ifelse(df$sponsored == "True", "Sponsored", "Not_sponsored")
+poids_positions <- seq(k, 1, by = -1)
+liste_cat <- setNames(as.list(rep(2, length(unique(df$category)))), unique(df$category))
+max_par_groupe <- c(liste_cat, list(Not_sponsored = 4))
+
+# Échantillon
+n <- 50
+echantillon <- df[sample(nrow(df), min(n, nrow(df))), ]
+
+# Construction du dataset
+data_mat <- data.frame(
+  id = 1:nrow(echantillon),
+  score = echantillon$score,
+  groupes = paste(echantillon$category, echantillon$sponsored, sep = ",")
 )
 
-max_par_groupe <- list(A = 2, B = 2, C = 1)
-poids <- c(5,4,3,2,1)
-k <- 5
+# Vérifier que le dataset n'est pas vide
+if(nrow(data_mat) > 0){
+  res_naif <- ranking_naif_max(data_mat, k = k, max_par_groupe, poids_positions = poids_positions)
+  res_naif$selected_items
+  res_naif$best_score
+} else {
+  message("data_mat est vide, impossible d'appliquer ranking_naif_max")
+}
 
-res_naif <- ranking_naif_max(data, k, max_par_groupe, poids_positions = poids)
-
+res_naif <- ranking_naif_max(data_mat, k, max_par_groupe, poids_positions = poids_positions)
 res_naif$selected_items
 res_naif$best_score
 ```
@@ -193,34 +210,21 @@ On applique l'algorithme sur un petit jeu de données illustratif :
 
 
 ```{r, echo=FALSE, message=FALSE}
-# Données d'exemple
-data <- data.frame(
-  id = 1:10,
-  score = c(1, 9, 8, 7, 6, 5, 4, 3, 2, 10),
-  groupes = c("C", "A", "B", "B", "C", "A,B", "C", "A", "B", "A")
-)
-
-# Contraintes: max 2 éléments du groupe A, 2 du groupe B, 1 du groupe C
-max_par_groupe <- list(A = 2, B = 2, C = 1)
-
-# Poids décroissants pour les positions (position 1 = poids 5, position 2 = poids 4, etc.)
-poids <- c(5, 4, 3, 2, 1)
-
 # Résolution
-result <- ranking_max(data, k = 5, max_par_groupe, poids_positions = poids)
+result <- ranking_max(data_mat, k, max_par_groupe, poids_positions = poids_positions)
 
 result$selected_items %>%
   select(position, id, score, group_list, poids_position, score_pondere) %>%
   kable(
-    format = "latex",              # forcer le format LaTeX
-    booktabs = TRUE,               # plus joli pour LaTeX
+    format = "latex",              
+    booktabs = TRUE,               
     align = "c",
     col.names = c("Position", "ID", "Score", "Groupe", "Poids position", "Score pondéré"),
     caption = "Tableau des éléments sélectionnés par l'algorithme ranking max",
-    escape = TRUE                  # <- très important pour échapper les caractères spéciaux
+    escape = TRUE                 
   ) %>%
   kable_styling(
-    latex_options = c("striped", "hold_position"),  # bootstrap_options = c(...) est pour HTML, ici LaTeX
+    latex_options = c("striped", "hold_position"),  
     full_width = FALSE
   ) %>%
   row_spec(0, bold = TRUE) %>%
@@ -229,7 +233,6 @@ result$selected_items %>%
 
 ```
 
-Score total = 130
 
 Visualisation : contribution par position
 ```{r, out.width='80%', echo=FALSE, message=FALSE}
@@ -280,16 +283,7 @@ On reprend l'exemple précédent des 10 produits, avec un **beam de taille 5** :
 ```{r, warning=FALSE, echo=FALSE, message=FALSE}
 library(Rcpp)
 
-data <- data.frame(
-  id = 1:10,
-  score = c(1, 9, 8, 7, 6, 5, 4, 3, 2, 10),
-  groupes = c("C", "A", "B", "B", "C", "A,B", "C", "A", "B", "A")
-)
-
-max_par_groupe <- list(A=2, B=2, C=1)
-k <- 5
-
-res <- ranking_max_dp_heap_cpp(data, k, max_par_groupe, beam_size = 5)
+res <- ranking_max_dp_heap_cpp(data_mat, k, max_par_groupe, beam_size = 5)
 print(res)
 ```
 
