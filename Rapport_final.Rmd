@@ -66,7 +66,7 @@ On impose que chaque groupe \( G_g \) apparaisse au plus \( \alpha_g \) fois dan
 
 ### 1.2.1. Contexte 
 
-On applique ce problème pour sélectionner les 5 produits les plus pertinents pour les afficher sur la page d'accuei d'un site de e-commerce. Chaque produit a un score $s_i$ correspondant à la moyenne des notes données par les utilisateurs. On souhaite maximiser ce score tout en respectant certaines contraintes :
+On applique ce problème pour sélectionner les 5 produits les plus pertinents pour les afficher sur la page d'accueil d'un site de e-commerce. Chaque produit a un score $s_i$ correspondant à la moyenne des notes données par les utilisateurs. On souhaite maximiser ce score tout en respectant certaines contraintes :
 - Diversité des catégories : pas plus de 2 produits de la même catégorie 
 - Contrainte marketing : au moins un produit sponsorisé doit apparaître dans le top 10
 
@@ -137,7 +137,7 @@ L'approche **heuristique** constitue une première stratégie simple pour résou
 
 3. Arrêt si aucune sélection possible pour une position ou si toutes les positions sont remplies.
 
-Cette méthode est **très rapide** et facile à implémenter, mais elle ne garantit **pas d'optimalité globale**, car elle ne considère pas les effets futurs de chaque choix.
+Cette méthode est très rapide et facile à implémenter, mais elle ne garantit pas d'optimalité globale, car elle ne considère pas les effets futurs de chaque choix.
 
 ### Exemple illustratif
 
@@ -176,9 +176,9 @@ res_naif$best_score
 ```
 
 
-* L'algorithme privilégie **les éléments les mieux notés pour les premières positions**.
-* Les contraintes de groupe peuvent limiter le choix, ce qui peut conduire à **des choix sous-optimaux pour les positions suivantes**.
-* Malgré ses limites, cette approche **rapide et simple** est utile pour obtenir une **baseline** ou comparer avec des méthodes plus sophistiquées comme la programmation dynamique exacte ou le Beam Search.
+* L'algorithme privilégie les éléments les mieux notés pour les premières positions.
+* Les contraintes de groupe peuvent limiter le choix, ce qui peut conduire à des choix sous-optimaux pour les positions suivantes.
+* Cette approche est rapide et simple.
 
 
 
@@ -188,14 +188,14 @@ res_naif$best_score
 
 # 3. Solution 1 : programmation dynamique 
 
-## Idée générale
+## L'algorithme
 
 Pour résoudre le problème de ranking sous contraintes de groupe et de poids positionnels, on utilise une programmation dynamique :
 
 Chaque état est défini par :
-- le nombre de positions déjà remplies,
-- le nombre d'éléments choisis par groupe (compteurs de groupes).
-- À chaque étape (position p), on essaie tous les éléments possibles qui respectent les contraintes de groupes et qui n'ont pas déjà été choisis.
+* le nombre de positions déjà remplies,
+* le nombre d'éléments choisis par groupe (compteurs de groupes).
+* À chaque étape (position p), on essaie tous les éléments possibles qui respectent les contraintes de groupes et qui n'ont pas déjà été choisis.
 
 Pour chaque état, on garde le meilleur score pondéré atteint.
 
@@ -203,10 +203,7 @@ Pour chaque état, on garde le meilleur score pondéré atteint.
 
 ## Exemple concret
 
-On applique l'algorithme sur un petit jeu de données illustratif :
-- 10 produits avec un score utilisateur (score) et un ou plusieurs groupes (groupes).
-- Contraintes : max 2 produits du groupe A, 2 du groupe B, 1 du groupe C.
-- Poids décroissants pour les positions : 5, 4, 3, 2, 1.
+On applique l'algorithme sur le jeu de données décrit en introduction :
 
 
 ```{r, echo=FALSE, message=FALSE}
@@ -252,9 +249,9 @@ Le graphique montre que les positions les mieux pondérées (1 et 2) contribuent
 
 # 4. Solution 2 : programmation dynamique et tas 
 
-Pour des ensembles de données plus volumineux, la **programmation dynamique exacte** peut devenir très coûteuse en temps et en mémoire, car le nombre d'états possibles croît de manière exponentielle avec le nombre de positions (k) et le nombre de groupes (G).
+Pour des ensembles de données plus volumineux, la programmation dynamique  peut devenir très coûteuse en temps et en mémoire, car le nombre d'états possibles croît de manière exponentielle avec le nombre de positions (k) et le nombre de groupes (G).
 
-Pour pallier cette limitation, nous utilisons une approche **approximate avec Beam Search**, elle conserve uniquement beam_size meilleurs états à chaque niveau, on a alors une approximation proche de l'optimum.
+Pour améliorer l'algorithme, nous utilisons une approche approximate avec Beam Search, elle conserve uniquement beam_size meilleurs états à chaque niveau, on a alors une approximation proche de l'optimum.
 
 ### Principe algorithmique
 
@@ -273,12 +270,10 @@ Pour pallier cette limitation, nous utilisons une approche **approximate avec Be
 
 3. À la fin, on reconstruit la sélection à partir du meilleur état final.
 
-La largeur du beam (`beam_size`) permet de **contrôler le compromis précision / performance**.
-
 
 ### Un exemple
 
-On reprend l'exemple précédent des 10 produits, avec un **beam de taille 5** :
+On reprend l'exemple précédent avec un **beam de taille 5** :
 
 ```{r, warning=FALSE, echo=FALSE, message=FALSE}
 library(Rcpp)
@@ -287,29 +282,14 @@ res <- ranking_max_dp_heap_cpp(data_mat, k, max_par_groupe, beam_size = 5)
 print(res)
 ```
 
-* `res$best_score` donne le score cumulé approximatif.
-* `res$selected_items` contient la liste des éléments sélectionnés.
 * Le champ `approximation` indique si la solution a été tronquée par le beam.
 
-* Même avec un **beam très limité**, l'algorithme tend à **sélectionner les éléments avec les meilleurs scores** tout en respectant les contraintes de groupe.
-* La **programmation dynamique combinée à un heap** permet de **garder les meilleures solutions intermédiaires** sans générer tous les états possibles, ce qui est crucial pour de grands ensembles de données.
-* Ce compromis entre **exactitude et performance** est particulièrement utile dans les systèmes de recommandation ou e-commerce où le calcul doit rester rapide.
+* Même avec un beam très limité, l'algorithme tend à sélectionner les éléments avec les meilleurs scores** tout en respectant les contraintes de groupe.
+* La programmation dynamique combinée à un heap permet de garder les meilleures solutions intermédiaires sans générer tous les états possibles, ce qui est crucial pour de grands ensembles de données.
 
 
 
-
-
-
-
-
-
-
-
-# 5. Comparaison des résultats 
-
-
-
-# 6. Complexité des algorithmes (par le calcul)
+# 5. Complexité des algorithmes (par le calcul)
 
 Voici nos 4 algorithmes :
 
@@ -318,14 +298,14 @@ Voici nos 4 algorithmes :
 3. **Algorithme dynamique C++ **
 4. **Algorithme dynamique C++ amélioré (beam search)**
 
-Pour chacun, nous analysons la complexité **temps** (meilleur, pire, moyenne)
+Pour chacun, nous analysons la complexité temps (meilleur, pire, moyenne)
 Les paramètres en jeu sont :  
-- **n** : nombre d'items (taille de l'entrée)
-- **G** : nombre de groupes
-- **k** : nombre de positions à remplir
-- **S** : nombre d'états effectivement atteints dans la DP
-- **M** : nombre théorique maximal d'états = $\prod_{g=1}^G (\text{max\_cap}_g + 1)$
-- **$\bar{g}$** : nombre moyen de groupes par item
+* **n** : nombre d'items (taille de l'entrée)
+* **G** : nombre de groupes
+* **k** : nombre de positions à remplir
+* **S** : nombre d'états effectivement atteints dans la DP
+* **M** : nombre théorique maximal d'états = $\prod_{g=1}^G (\text{max\_cap}_g + 1)$
+* **$\bar{g}$** : nombre moyen de groupes par item
 
 
 ## 1. Algorithme Naïf Glouton (R)
@@ -336,18 +316,20 @@ Sélection gloutonne : pour chaque position p, parcourir tous les candidats rest
 
 **Étape 1 - Initialisation** : $O(G)$
 
-- Création des structures de données
-- Négligeable devant la boucle principale
+* Création des structures de données
+* Négligeable devant la boucle principale
 
 **Étape 2 - Boucle principale**
 
 Pour chaque position $p = 1, \ldots, k$ :
 
 - Nombre d'items restants à examiner : $n - (p-1)$
+
 - Pour chaque item candidat :
-  - Parser les groupes : $O(\bar{g})$ 
-  - Vérifier les contraintes : $O(\bar{g})$ comparaisons
-  - Calculer le gain : $O(1)$
+  * Parser les groupes : $O(\bar{g})$ 
+  * Vérifier les contraintes : $O(\bar{g})$ comparaisons
+  * Calculer le gain : $O(1)$
+  
 - Mise à jour des compteurs : $O(\bar{g})$
 
 Coût pour la position $p$ :
@@ -386,14 +368,15 @@ Structure : `DP[[p+1]][[key]]` avec `key = "c1,c2,...,cG"`
 Pour chaque position $p = 1, \ldots, k$ :
 
 - États actifs au niveau $p-1$ : $S_p$ états
+
 - Pour chaque état actif :
-  - Parser la clé : $O(G)$
-  - Pour chaque item $i = 1, \ldots, n$ :
-    - Vérifier si utilisé : $O(p)$ 
-    - Calculer nouveaux compteurs : $O(G)$
-    - Vérifier contraintes : $O(G)$
-    - Créer nouvelle clé : $O(G)$
-    - Mise à jour DP : $O(1)$
+  * Parser la clé : $O(G)$
+  * Pour chaque item $i = 1, \ldots, n$ :
+    * Vérifier si utilisé : $O(p)$ 
+    * Calculer nouveaux compteurs : $O(G)$
+    * Vérifier contraintes : $O(G)$
+    * Créer nouvelle clé : $O(G)$
+    * Mise à jour DP : $O(1)$
 
 Coût pour un état et un item : $O(p + G)$
 
@@ -431,12 +414,12 @@ Même logique que DP R, mais avec `unordered_map` et optimisations C++.
 
 Pour chaque position $p$, chaque état $S_p$, chaque item $n$ :
 
-- Parse key : $O(G)$
-- Vérifier si utilisé (std::find) : $O(p)$
-- Calculer compteurs : $O(G)$
-- Make key : $O(G)$
-- Hash + lookup : $O(G)$ pour le hashing, $O(1)$ amorti pour l'accès
-- Insert/update : $O(1)$ amorti
+* Parse key : $O(G)$
+* Vérifier si utilisé (std::find) : $O(p)$
+* Calculer compteurs : $O(G)$
+* Make key : $O(G)$
+* Hash + lookup : $O(G)$ pour le hashing, $O(1)$ amorti pour l'accès
+* Insert/update : $O(1)$ amorti
 
 Coût par transition : $O(p + G)$
 
@@ -473,11 +456,12 @@ Items triés par score décroissant pour améliorer la qualité des états gard�
 Pour chaque position $p$, chaque état (max $B$), chaque item $n$ :
 
 - Extraction des états du tas : $O(B \log B)$ (une fois par niveau)
+
 - Pour chaque état × item :
-  - Calcul compteurs : $O(G)$
-  - Make key : $O(G)$
-  - Push dans tas : $O(\log B)$
-  - Pruning si nécessaire : $O(\log B)$
+  * Calcul compteurs : $O(G)$
+  * Make key : $O(G)$
+  * Push dans tas : $O(\log B)$
+  * Pruning si nécessaire : $O(\log B)$
 
 Coût par niveau : $T_p = O(B \log B) + O(nB(G + \log B))$
 
@@ -639,15 +623,15 @@ print(p2)
 
 **Cas moyen** :
 
-- Beam Search et DP C++ sont très compétitifs
-- DP R significativement plus lent (facteur 10)
-- Naïf acceptable pour petites instances
+* Beam Search et DP C++ sont très compétitifs
+* DP R significativement plus lent (facteur 10)
+* Naïf acceptable pour petites instances
 
 **Pire cas** :
 
-- Explosion exponentielle des DP exact (R et C++)
-- Beam Search reste linéaire et prévisible
-- Seul algorithme viable pour grands problèmes avec $G \geq 6$
+* Explosion exponentielle des DP exact (R et C++)
+* Beam Search reste linéaire et prévisible
+* Seul algorithme viable pour grands problèmes avec $G \geq 6$
 
 
 ## Impact du nombre de groupes G
@@ -747,7 +731,7 @@ $$
 \text{Si } M = \prod_{g=1}^G (\text{max\_cap}_g + 1) > 100000 \Rightarrow \text{Utiliser Beam Search}
 $$
 
-# 7. Temps de calcul 
+# 6. Temps de calcul 
 
 ```{r}
 
