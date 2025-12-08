@@ -918,4 +918,16 @@ legend("topleft",
 ```
 
 
+Les graphiques en échelle *log-log* montrent que chaque algorithme suit une relation de type  
+\( T(n) \propto n^{\alpha} \), ce que confirment les régressions linéaires dont les coefficients de détermination sont très élevés (R² > 0.96).  
+Les pentes estimées permettent de comparer directement la croissance du temps de calcul entre algorithmes.
+
+- **Algorithme naïf (R)** : la pente (~0.95) indique une croissance presque linéaire. L’algorithme est très rapide mais ne garantit pas l’optimalité.
+
+- **Programmation dynamique (R)** : la pente élevée (~2.3) montre une forte augmentation du temps de calcul. L’algorithme devient difficilement utilisable lorsque \( n > 100 \).
+
+- **Programmation dynamique (C++)** : la pente plus faible (~1.7) reflète une complexité mieux contrôlée. L’implémentation est environ 100× plus rapide que celle en R.
+
+- **Programmation dynamique avec tas (C++)** : la croissance du temps reste modérée avec une d'environ 1.35, même pour de grandes valeurs de \( n \). Si on utiliserait des valeurs plus grandes que celle testées, le temps de cet algorithme serait moins important que celui d'une programmation dynamique standard. 
+
 
