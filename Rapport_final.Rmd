@@ -288,8 +288,80 @@ print(res)
 * La programmation dynamique combinée à un heap permet de garder les meilleures solutions intermédiaires sans générer tous les états possibles, ce qui est crucial pour de grands ensembles de données.
 
 
+# 5. Comparaison de la performance
 
-# 5. Complexité des algorithmes (par le calcul)
+```{r}
+
+set.seed(13)
+
+num_instances <- 50   # nombre d'instances
+n_items <- 50         # items par instance
+k <- 5                # positions
+ratios1 <- numeric(num_instances)
+ratios2 <- numeric(num_instances)
+
+
+df <- read.csv("amazon_products_250.csv", stringsAsFactors = FALSE)
+df$sponsored <- ifelse(df$sponsored == "True", "Sponsored", "Not_sponsored")
+
+# Poids de position 
+poids_positions <- seq(k, 1, by = -1) 
+
+# Création des listes de contraintes
+liste_cat <- setNames(as.list(rep(2, length(unique(df$category)))),
+                      unique(df$category))
+max_par_groupe <- c(liste_cat, list(Not_sponsored = 9))
+
+for (i in 1:num_instances)
+{
+  echantillon <- df[sample(nrow(df), min(n_items, nrow(df))), ]
+  data_mat <- data.frame(
+    id = 1:nrow(echantillon),
+    score = echantillon$score,
+    groupes = paste(echantillon$category, 
+                    echantillon$sponsored, sep = ",")
+  )
+  V_g <- ranking_naif_max(data_mat,k,max_par_groupe,poids_positions)$best_score
+  V_opt <- ranking_max_cpp(data_mat,k,max_par_groupe,poids_positions)$best_score
+  V_dp_heap <- ranking_max_dp_heap_cpp(data_mat,k,max_par_groupe,poids_positions)$best_score
+  
+  ratios1[i] <- V_g / V_opt
+  ratios2[i] <- V_dp_heap / V_opt
+  
+}
+```
+
+```{r}
+boxplot(ratios1, ratios2, names=c("Naif", "DP Heap"),
+        main="Comparaison des ratios valeur trouvée / optimum",
+        ylab="Ratio / Optimum", col=c("red","blue"))
+```
+
+On constate que l'approche heuristique fonctionne très bien alors que la programmation dynamique avec tas ne trouve pas toujours la solution optimale. 
+
+Si l'algorithme naif trouve presque toujours la solution optimale, voici un exemple où ce n'est pas le cas :
+
+```{r}
+data <- data.frame(
+  id = 1:6,
+  score = c(100, 99, 98, 97, 60, 50),
+  groupes = c("A,S", "A,S", "A", "B,S", "C,S", "C,S")
+)
+max_par_groupe <- list(A = 2, B = 2, C = 2, S = 4)
+poids_positions <- seq(k, 1, by = -1) 
+
+cat("Resultat naif\n")
+resultat_naif <- ranking_naif_max(data, 5, max_par_groupe, poids_positions)
+print(resultat_naif)
+
+cat("Resultat programmation dynamique\n")
+resultat_dp <- ranking_max_cpp(data, 5, max_par_groupe, poids_positions)
+print(resultat_dp)
+```
+
+
+
+# 6. Complexité des algorithmes (par le calcul)
 
 Voici nos 4 algorithmes :
 
@@ -731,7 +803,7 @@ $$
 \text{Si } M = \prod_{g=1}^G (\text{max\_cap}_g + 1) > 100000 \Rightarrow \text{Utiliser Beam Search}
 $$
 
-# 6. Temps de calcul 
+# 7. Temps de calcul 
 
 ```{r}
 
