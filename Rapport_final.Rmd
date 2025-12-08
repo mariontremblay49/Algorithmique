@@ -766,6 +766,170 @@ $$
 
 ```{r}
 
+n <- c(20,22,25,32,42,55,70,90,125,160)
+temps_moyens1 <- numeric(length(n))
+temps_moyens2 <- numeric(length(n))
+temps_moyens3 <- numeric(length(n))
+temps_moyens4 <- numeric(length(n))
+k <- 5
+
+df <- read.csv("amazon_products_250.csv", stringsAsFactors = FALSE)
+df$sponsored <- ifelse(df$sponsored == "True", "Sponsored", "Not_sponsored")
+
+# Poids de position 
+poids_positions <- seq(k, 1, by = -1) 
+
+# Création des listes de contraintes
+liste_cat <- setNames(as.list(rep(2, length(unique(df$category)))),
+                      unique(df$category))
+max_par_groupe <- c(liste_cat, list(Not_sponsored = 9))
+
+for (i in 1:length(n))
+{
+  echantillon <- df[sample(nrow(df), min(n[i], nrow(df))), ]
+  data_mat <- data.frame(
+    id = 1:nrow(echantillon),
+    score = echantillon$score,
+    groupes = paste(echantillon$category, 
+                    echantillon$sponsored, sep = ",")
+  )
+  
+  start_time1 <- Sys.time()
+  res1 <- ranking_naif_max(data_mat, k = k, max_par_groupe, poids_positions = poids_positions)
+  end_time1 <- Sys.time()
+  elapsed_time1 <- as.numeric(difftime(end_time1, start_time1, units = "secs"))
+  temps_moyens1[i] <- elapsed_time1
+  
+  start_time2 <- Sys.time()
+  res2 <- ranking_max(data_mat, k = k, max_par_groupe, poids_positions = poids_positions)
+  end_time2 <- Sys.time()
+  elapsed_time2 <- as.numeric(difftime(end_time2, start_time2, units = "secs"))
+  temps_moyens2[i] <- elapsed_time2
+  
+  start_time3 <- Sys.time()
+  res3 <- ranking_max_cpp(data_mat, k = k, max_par_groupe, poids_positions = poids_positions)
+  end_time3 <- Sys.time()
+  elapsed_time3 <- as.numeric(difftime(end_time3, start_time3, units = "secs"))
+  temps_moyens3[i] <- elapsed_time3
+  
+  start_time4 <- Sys.time()
+  res4 <- ranking_max_dp_heap_cpp(data_mat, k = k, max_par_groupe, poids_positions = poids_positions)
+  end_time4 <- Sys.time()
+  elapsed_time4 <- as.numeric(difftime(end_time4, start_time4, units = "secs"))
+  temps_moyens4[i] <- elapsed_time4
+}
+
+cat("Temps pour l'algorithme naif\n")
+temps_moyens1
+cat("Temps pour l'algorithme de programmation dynamique\n")
+temps_moyens2
+cat("Temps pour l'algorithme de programmation dynamique (en C++)\n")
+temps_moyens3
+cat("Temps pour l'algorithme de programmation dynamique avec tas (en C++)\n")
+temps_moyens4
+
+```
+
+
+
+```{r}
+par(mfrow=c(2,2))
+
+# Graphique 1
+res1 <- data.frame(
+  n = n,
+  time = temps_moyens1
+)
+plot(log(res1$n), log(res1$time), pch=16,
+     xlab="Taille des séquences : n (log)",
+     ylab="Temps (s, log)",
+     main="Algo naif (log-log)")
+abline(lm(log(time) ~ log(n), data=res1), col="red")
+
+# Graphique 2
+res2 <- data.frame(
+  n = n,
+  time = temps_moyens2
+)
+plot(log(res2$n), log(res2$time), pch=16,
+     xlab="Taille des séquences : n (log)",
+     ylab="Temps moyen (s, log)",
+     main="Algo dp (R) (log-log)")
+abline(lm(log(time) ~ log(n), data=res2), col="red")
+
+# Graphique 3
+res3 <- data.frame(
+  n = n,
+  time = temps_moyens3
+)
+plot(log(res3$n), log(res3$time), pch=16,
+     xlab="Taille des séquences : n (log)",
+     ylab="Temps moyen (s, log)",
+     main="Algo dp (C++) (log-log)")
+abline(lm(log(time) ~ log(n), data=res3), col="red")
+
+# Graphique 4
+res4 <- data.frame(
+  n = n,
+  time = temps_moyens4
+)
+plot(log(res4$n), log(res4$time), pch=16,
+     xlab="Taille des séquences : n (log)",
+     ylab="Temps moyen (s, log)",
+     main="Algo dp avec tas (C++) (log-log)")
+abline(lm(log(time) ~ log(n), data=res4), col="red")
+
+par(mfrow=c(1,1))
+```
+
+```{r}
+
+modele1 <- lm(log(time) ~ log(n), data = res1)
+summary(modele1)
+
+modele2 <- lm(log(time) ~ log(n), data = res2)
+summary(modele2)
+
+modele3 <- lm(log(time) ~ log(n), data = res3)
+summary(modele3)
+
+modele4 <- lm(log(time) ~ log(n), data = res4)
+summary(modele4)
+```
+
+
+```{r}
+# Couleurs pour chaque algorithme
+cols <- c("blue", "red", "green", "purple")
+
+# Déterminer les limites de l'axe x et y pour inclure toutes les données
+xlim <- range(log(res1$n), log(res2$n), log(res3$n), log(res4$n))
+ylim <- range(log(res1$time), log(res2$time), log(res3$time), log(res4$time))
+
+# Graphique vide pour préparer l'affichage
+plot(NA, NA, xlim=xlim, ylim=ylim,
+     xlab="Taille des séquences : n (log)",
+     ylab="Temps (s, log)",
+     main="Comparaison des algorithmes (log-log)")
+
+# Ajouter les 4 séries de points
+points(log(res1$n), log(res1$time), pch=16, col=cols[1])
+points(log(res2$n), log(res2$time), pch=16, col=cols[2])
+points(log(res3$n), log(res3$time), pch=16, col=cols[3])
+points(log(res4$n), log(res4$time), pch=16, col=cols[4])
+
+# Ajouter les droites de régression
+abline(lm(log(time) ~ log(n), data=res1), col=cols[1], lwd=2)
+abline(lm(log(time) ~ log(n), data=res2), col=cols[2], lwd=2)
+abline(lm(log(time) ~ log(n), data=res3), col=cols[3], lwd=2)
+abline(lm(log(time) ~ log(n), data=res4), col=cols[4], lwd=2)
+
+# Ajouter la légende
+legend("topleft",
+       legend=c("Algo naif", "DP (R)", "DP (C++)", "DP + tas (C++)"),
+       col=cols, pch=16, lwd=2,
+       cex=0.6)
+
 ```
 
 
