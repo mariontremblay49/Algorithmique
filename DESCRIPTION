@@ -1,12 +1,22 @@
 Package: Ranking
 Type: Package
-Title: What the Package Does (Title Case)
+Title: Ranking Algorithms for Constrained Top-K Selection
 Version: 0.1.0
-Author: Who wrote it
+Author: Flavie Bertrand & Marion Tremblay
 Maintainer: The package maintainer <yourself@somewhere.net>
-Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
-License: What license is it under?
+Description: Outils pour résoudre des problèmes de classement (ranking) consistant 
+    à sélectionner et ordonner les k meilleurs éléments parmi un ensemble de n items. 
+    Le package implémente plusieurs approches permettant de gérer des contraintes 
+    de groupes, tout en maximisant un score pondéré par la position.
+    Il propose notamment
+    - un algorithme naïf (glouton) fournissant une solution rapide mais non optimale,
+    - une approche exacte par programmation dynamique, garantissant la solution optimale,
+    - une variante améliorée reposant sur une programmation dynamique combinée à un tas, 
+    permettant d’obtenir une solution quasi-optimale avec un temps de calcul maîtrisé, 
+    même pour de grands ensembles d’items.
+    Ces méthodes sont adaptées à divers contextes applicatifs tels que la recommandation 
+    de produits, la sélection d’items les plus pertinents.
+License: GPL-3
 Encoding: UTF-8
 LazyData: true
 Imports: Rcpp (>= 1.0.13-1)
