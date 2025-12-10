@@ -73,7 +73,7 @@ string vec2key(const vector<int> &v) {
 // -----------------------------------------------------------
 
 // [[Rcpp::export]]
-Rcpp::List ranking_max_dp_optimized_cpp(
+Rcpp::List ranking_max_dp_cpp(
     Rcpp::DataFrame data,
     int k,
     Rcpp::List max_par_groupe,
