@@ -75,17 +75,38 @@ On impose que chaque groupe \( G_g \) apparaisse au plus \( \alpha_g \) fois dan
 ### 1.2.1. Contexte 
 
 On applique ce problème pour sélectionner les 5 produits les plus pertinents pour les afficher sur la page d'accueil d'un site de e-commerce. Chaque produit a un score $s_i$ correspondant à la moyenne des notes données par les utilisateurs. On souhaite maximiser ce score tout en respectant certaines contraintes :
+
 - Diversité des catégories : pas plus de 2 produits de la même catégorie 
-- Contrainte marketing : au moins un produit sponsorisé doit apparaître dans le top 10
+
+- Contrainte marketing : au moins un produit sponsorisé doit apparaître dans le top 5
 
 Pour répondre à ce problème on utilise la base de données des retours produits du site Amazon datant de 2018. Nous avons sélectionné un échantillon de 250 produits de cette base de données. Nous avons généré une colonne en plus pour réaliser la contrainte marketing, en associant 15% des produits de la base de données à des produits sponsorisés.
+
+
+| Asin          | Score      | Category       | Sponsored     |
+|---------------|------------|----------------|---------------|
+| B00004ZCJI    | 4,4        | Electronics    | False         |
+| B00004ZCJJ    | 4,4        | Electronics    | False         |
+| B00079ULA8    | 4,1        | Sports         | False         |
+| B000CBSNRY    | 4,9        | Toys_Games     | False         |
+| B0001YR54E    | 4,5        | Clothing       |  True         |
+
+
+| Id   | Score      | Groupe                        |
+|------|------------|-------------------------------|
+| 1    | 4,4        | Electronics, not_sponsored    |
+| 2    | 4,4        | Electronics, not_sponsored    |
+| 3    | 4,1        | Sports, not_sponsored         |
+| 4    | 4,9        | Toys_Games, not_sponsored     |
+| 5    | 4,5        | Clothing, sponsored           |
+
 
 ### 1.2.2. Formulation mathématique 
 
 La fonction objectif est :
 
 \[
-\max_x \sum_{i=1}^n \sum_{p=1}^k w_p\, s_i\, x_{i,p}
+\max_x \sum_{i=1}^n \sum_{p=1}^5 w_p\, s_i\, x_{i,p}
 \]
 
 où :
@@ -104,26 +125,26 @@ où :
 - Un produit ne peut être affiché qu'une seule fois :
 
 \[
-\sum_{k=1}^{5} x_{i,k} \le 1 \quad \forall i
+\sum_{p=1}^{5} x_{i,p} \le 1 \quad \forall i
 \]
 
 - Maximum 2 produits par catégorie :
 
 \[
-\sum_{i \in \text{cat } c} \sum_{p=1}^{5} x_{i^p} \le 2
+\sum_{i \in \text{cat } c} \sum_{p=1}^{5} x_{i,p} \le 2
 \]
 
 
 - Au moins 1 produit sponsorisé dans le top 5 :
 
 \[
-\sum_{i \in \text{sponsor}} \sum_{p=1}^{5} x_{i,p} \ge 1
+\sum_{i \in \text{sponsored}} \sum_{p=1}^{5} x_{i,p} \ge 1
 \]
 
 Cette dernière contrainte est équivalente à avoir maximum 4 produits non sponsorisé dans le top 5, soit :
-\[
-\sum_{i \in \text{no sponsor}} \sum_{p=1}^{5} x_{i,p} \le 4
-\]
+$$
+\sum_{i \in \text{not sponsored} } \sum_{p=1}^{5} x_{i,p} \le 4
+$$
 
 
 
@@ -140,7 +161,7 @@ L'approche **heuristique** constitue une première stratégie simple pour résou
 2. Pour chaque position (p = 1,\dots,k) :
 
    * Considérer les éléments non encore sélectionnés respectant les contraintes de groupes.
-   * Choisir l'élément avec le gain immédiat maximal $w_p \cdot s_i$
+   * Choisir l'élément avec le gain immédiat maximal $w_p \cdot s_i$.
    * Mettre à jour les compteurs de groupes et le score total.
 
 3. Arrêt si aucune sélection possible pour une position ou si toutes les positions sont remplies.
@@ -148,6 +169,8 @@ L'approche **heuristique** constitue une première stratégie simple pour résou
 Cette méthode est très rapide et facile à implémenter, mais elle ne garantit pas d'optimalité globale, car elle ne considère pas les effets futurs de chaque choix.
 
 ### Exemple illustratif
+
+On applique l'algorithme sur le jeu de données décrit en introduction :
 
 ```{r, message=FALSE, echo=FALSE}
 # Paramètres
@@ -201,17 +224,27 @@ res_naif$best_score
 Pour résoudre le problème de ranking sous contraintes de groupe et de poids positionnels, on utilise une programmation dynamique :
 
 Chaque état est défini par :
+
 * le nombre de positions déjà remplies,
 * le nombre d'éléments choisis par groupe (compteurs de groupes).
 * À chaque étape (position p), on essaie tous les éléments possibles qui respectent les contraintes de groupes et qui n'ont pas déjà été choisis.
 
-Pour chaque état, on garde le meilleur score pondéré atteint.
-
 À la fin, on récupère l'état final avec le score total maximal et la sélection correspondante.
+
+La relation de récurrence est :
+$$
+DP[s][c][S] = max\{ DP [p-1][c'][S'] + w[p] s[i] \}
+$$
+avec 
+
+* $p$ : nombre d'éléments
+* $c=(c[1], c[2], ..., c[G])$ : vecteur des compteurs par groupe
+* $S$ : ensemble des éléments déjà utilisés
+* $DP[s][c][S]$ : meilleur score pour avoir sélectionné p éléments avec configuration $c$ et ensemble $S$.
 
 ## Exemple concret
 
-On applique l'algorithme sur le jeu de données décrit en introduction :
+On applique l'algorithme une nouvelle fois sur le jeu de données décrit en introduction :
 
 
 ```{r, echo=FALSE, message=FALSE}
@@ -259,7 +292,7 @@ Le graphique montre que les positions les mieux pondérées (1 et 2) contribuent
 
 Pour des ensembles de données plus volumineux, la programmation dynamique  peut devenir très coûteuse en temps et en mémoire, car le nombre d'états possibles croît de manière exponentielle avec le nombre de positions (k) et le nombre de groupes (G).
 
-Pour améliorer l'algorithme, nous utilisons une approche approximate avec Beam Search, elle conserve uniquement beam_size meilleurs états à chaque niveau, on a alors une approximation proche de l'optimum.
+Pour améliorer l'algorithme, nous utilisons une approche approximative avec Beam Search, elle conserve uniquement beam_size meilleurs états à chaque niveau, on a alors une approximation proche de l'optimum.
 
 ### Principe algorithmique
 
@@ -303,7 +336,7 @@ print(res)
 set.seed(13)
 
 num_instances <- 50   # nombre d'instances
-n_items <- 50         # items par instance
+n_items <- 10         # items par instance
 k <- 5                # positions
 ratios1 <- numeric(num_instances)
 ratios2 <- numeric(num_instances)
@@ -337,11 +370,53 @@ for (i in 1:num_instances)
   ratios2[i] <- V_dp_heap / V_opt
   
 }
+
+boxplot(ratios1, ratios2, names=c("Naif", "DP Heap"),
+        main="Comparaison des ratios valeur trouvée / optimum n=10",
+        ylab="Ratio / Optimum", col=c("red","blue"))
 ```
 
 ```{r}
+set.seed(13)
+
+num_instances <- 50   # nombre d'instances
+n_items <- 200         # items par instance
+k <- 5                # positions
+ratios1 <- numeric(num_instances)
+ratios2 <- numeric(num_instances)
+
+
+df <- read.csv("amazon_products_250.csv", stringsAsFactors = FALSE)
+df$sponsored <- ifelse(df$sponsored == "True", "Sponsored", "Not_sponsored")
+
+# Poids de position 
+poids_positions <- seq(k, 1, by = -1) 
+
+# Création des listes de contraintes
+liste_cat <- setNames(as.list(rep(2, length(unique(df$category)))),
+                      unique(df$category))
+max_par_groupe <- c(liste_cat, list(Not_sponsored = 9))
+
+for (i in 1:num_instances)
+{
+  echantillon <- df[sample(nrow(df), min(n_items, nrow(df))), ]
+  data_mat <- data.frame(
+    id = 1:nrow(echantillon),
+    score = echantillon$score,
+    groupes = paste(echantillon$category, 
+                    echantillon$sponsored, sep = ",")
+  )
+  V_g <- ranking_naif_max(data_mat,k,max_par_groupe,poids_positions)$best_score
+  V_opt <- ranking_max_cpp(data_mat,k,max_par_groupe,poids_positions)$best_score
+  V_dp_heap <- ranking_max_dp_heap_cpp(data_mat,k,max_par_groupe,poids_positions)$best_score
+  
+  ratios1[i] <- V_g / V_opt
+  ratios2[i] <- V_dp_heap / V_opt
+  
+}
+
 boxplot(ratios1, ratios2, names=c("Naif", "DP Heap"),
-        main="Comparaison des ratios valeur trouvée / optimum",
+        main="Comparaison des ratios valeur trouvée / optimum n=200",
         ylab="Ratio / Optimum", col=c("red","blue"))
 ```
 
@@ -352,7 +427,7 @@ Si l'algorithme naif trouve presque toujours la solution optimale, voici un exem
 ```{r}
 data <- data.frame(
   id = 1:6,
-  score = c(100, 99, 98, 97, 60, 50),
+  score = c(5, 4.8, 4.7, 4.6, 4, 3),
   groupes = c("A,S", "A,S", "A", "B,S", "C,S", "C,S")
 )
 max_par_groupe <- list(A = 2, B = 2, C = 2, S = 4)
@@ -412,27 +487,27 @@ Pour chaque position $p = 1, \ldots, k$ :
 - Nombre d'items restants à examiner : $n - (p-1)$
 
 - Pour chaque item candidat :
-  * Parser les groupes : $O(\bar{g})$ 
-  * Vérifier les contraintes : $O(\bar{g})$ comparaisons
+  * Parser les groupes : $O(G)$ 
+  * Vérifier les contraintes : $O(G)$ comparaisons
   * Calculer le gain : $O(1)$
   
-- Mise à jour des compteurs : $O(\bar{g})$
+- Mise à jour des compteurs : $O(G)$
 
 Coût pour la position $p$ :
-$$T_p = O((n - p + 1) \times \bar{g})$$
+$$T_p = O((n - p + 1) \times G)$$
 
 Coût total de la boucle :
-$$T_{\text{boucle}} = \sum_{p=1}^{k} O((n - p + 1) \times \bar{g}) = O\left(\bar{g} \times \left(kn - \frac{k(k-1)}{2}\right)\right) \approx O(k n \bar{g})$$
+$$T_{\text{boucle}} = \sum_{p=1}^{k} O((n - p + 1) \times G) = O\left(G \times \left(kn - \frac{k(k-1)}{2}\right)\right) \approx O(k n G)$$
 
 ### Complexité temporelle
 
-$$\boxed{T_{\text{naïf}}(n) = O(k n \bar{g})}$$
+$$\boxed{T_{\text{naïf}}(n) = O(k n G)}$$
 
-**Meilleur cas** : $\boxed{T(n) = O(kn)}$ si $\bar{g} = O(1)$
+**Meilleur cas** : $\boxed{T(n) = O(kn)}$ si $G = O(1)$
 
 **Cas moyen** : $\boxed{T(n) = O(k n \bar{g})}$
 
-**Pire cas** : $\boxed{T(n) = O(k n G)}$ si $\bar{g} = G$
+**Pire cas** : $\boxed{T(n) = O(k n G)}$
 
 
 
@@ -444,8 +519,8 @@ Programmation dynamique avec états définis par $(p, c_1, \ldots, c_G)$ où $c_
 
 **Étape 1 - Prétraitement** : $O(nG)$
 
-- Parser les groupes de chaque item : $O(n \bar{g})$
-- Créer la matrice binaire `item_groups` : $O(nG)$
+- Parser les groupes de chaque item : $O(n G)$
+- Créer la matrice binaire `item_groups` : $O(nG^2)$
 
 **Étape 2 - Programmation dynamique**
 
@@ -802,23 +877,13 @@ ggplot(df_impact_long, aes(x = G, y = operations, color = algo)) +
 - **G >= 7** : Seul Beam Search reste praticable
 - L'explosion de M = (cap+1)^G rend DP exact inutilisable pour grand G
 
-**Choix de l'algorithme selon le contexte**
-
-| Contexte | Algorithme recommandé | Justification |
-|----------|----------------------|---------------|
-| Petits problèmes (n<100, G<3, k<10) | **Naïf R** ou **DP R** | Simple, rapide, optimal |
-| Moyens problèmes (n<1000, G<5, k<20) | **DP C++** | Optimal garanti, performance acceptable |
-| Grands problèmes (n>1000 ou G>5) | **Beam C++** | Seul viable, quasi-optimal |
-| Production avec contraintes temps | **Beam C++** (B=5000) | Prédictible, contrôlable |
-| Recherche d'optimum prouvé | **DP C++** si faisable | Exact mais peut échouer |
-
-
 
 # 7. Temps de calcul 
 
 ```{r}
+set.seed(123)
 
-n <- c(20,22,25,32,42,55,70,90,125,160)
+n <- c(20,22,25,32,42,55,70,90,125,160,200,250)
 temps_moyens1 <- numeric(length(n))
 temps_moyens2 <- numeric(length(n))
 temps_moyens3 <- numeric(length(n))
@@ -989,12 +1054,25 @@ Les graphiques en échelle *log-log* montrent que chaque algorithme suit une rel
 \( T(n) \propto n^{\alpha} \), ce que confirment les régressions linéaires dont les coefficients de détermination sont très élevés (R² > 0.96).  
 Les pentes estimées permettent de comparer directement la croissance du temps de calcul entre algorithmes.
 
-- **Algorithme naïf (R)** : la pente (~0.95) indique une croissance presque linéaire. L’algorithme est très rapide mais ne garantit pas l’optimalité.
+- **Algorithme naïf (R)** : la pente (~0.93) indique une croissance presque linéaire. L’algorithme est très rapide mais ne garantit pas l’optimalité.
 
-- **Programmation dynamique (R)** : la pente élevée (~2.3) montre une forte augmentation du temps de calcul. L’algorithme devient difficilement utilisable lorsque \( n > 100 \).
+- **Programmation dynamique (R)** : la pente élevée (~1.96) montre une forte augmentation du temps de calcul. L’algorithme devient difficilement utilisable lorsque \( n > 100 \).
 
 - **Programmation dynamique (C++)** : la pente plus faible (~1.7) reflète une complexité mieux contrôlée. L’implémentation est environ 100× plus rapide que celle en R.
 
-- **Programmation dynamique avec tas (C++)** : la croissance du temps reste modérée avec une d'environ 1.35, même pour de grandes valeurs de \( n \). Si on utiliserait des valeurs plus grandes que celle testées, le temps de cet algorithme serait moins important que celui d'une programmation dynamique standard. 
+- **Programmation dynamique avec tas (C++)** : la croissance du temps reste modérée avec une pente d'environ 1.27, même pour de grandes valeurs de \( n \). Si on utiliserait des valeurs plus grandes que celle testées, le temps de cet algorithme serait moins important que celui d'une programmation dynamique standard. 
+
+
+# Conclusion
+
+**Choix de l'algorithme selon le contexte**
+
+| Contexte | Algorithme recommandé | Justification |
+|----------|----------------------|---------------|
+| Petits problèmes (n<100, G<3, k<10) | **DP C++** | Simple, rapide, optimal |
+| Moyens problèmes (n<1000, G<5, k<20) | **Naïf R** ou **DP R** | Optimal garanti, performance acceptable |
+| Grands problèmes (n>1000 ou G>5) | **Naïf R** | Seul viable, quasi-optimal |
+| Production avec contraintes temps | **Beam C++** (B=5000) | Prédictible, contrôlable |
+| Recherche d'optimum prouvé | **DP C++** si faisable | Exact mais peut échouer |
 
 
