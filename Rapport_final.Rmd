@@ -470,8 +470,6 @@ Les paramètres en jeu sont :
 
 * **k** : nombre de positions à remplir
 
-* **S** : nombre d'états effectivement atteints dans la DP
-
 * **M** : nombre théorique maximal d'états = $\prod_{g=1}^G (\text{max\_cap}_g + 1)$
 
 * **$\bar{g}$** : nombre moyen de groupes par item
@@ -534,78 +532,35 @@ Programmation dynamique avec états définis par $(p, c_1, \ldots, c_G)$ où $c_
 
 Structure : `DP[[p+1]][[key]]` avec `key = "c1,c2,...,cG"`
 
-Pour chaque position $p = 1, \ldots, k$ :
+Nous obtenu ce calcul : $O(k) + O(k) + O(k)(O(G) + O(n)( O(k) + O(G) + O(G))$
 
-- États actifs au niveau $p-1$ : $S_p$ états
 
-- Pour chaque état actif :
-  * Parser la clé : $O(G)$
-  * Pour chaque item $i = 1, \ldots, n$ :
-    * Vérifier si utilisé : $O(p)$ 
-    * Calculer nouveaux compteurs : $O(G)$
-    * Vérifier contraintes : $O(G)$
-    * Créer nouvelle clé : $O(G)$
-    * Mise à jour DP : $O(1)$
-
-Coût pour un état et un item : $O(p + G)$
-
-Coût pour la position $p$ : $T_p = O(S_p \times n \times (p + G))$
-
-En supposant $S_p \approx S$ constant et $G \geq k$ :
-
-$$T_{\text{DP}} = \sum_{p=1}^{k} O(S \times n \times G) = O(S n k G)$$
-
-**Étape 3 - Recherche du meilleur** : $O(S \times G)$
+**Étape 3 - Recherche du meilleur** : $O(G)$
 
 ### Complexité temporelle
 
-$$\boxed{T_{\text{DP-R}}(n) = O(S n k G)}$$
+$$\boxed{T_{\text{DP-R}}(n) = O(n k^2 G^2)}$$
 
-**Meilleur cas** : $\boxed{T(n) = O(nkG)}$ si $S = O(1)$
+**Meilleur cas** : $\boxed{T(n) = O(nk^2)}$
 
-**Cas moyen** : $\boxed{T(n) = O(SnkG)}$ avec $S \ll M$
+**Cas moyen** : $\boxed{T(n) = O(nk^2\bar g^2)}$ 
 
-**Pire cas** : $\boxed{T(n) = O(MnkG)}$ où $M = \prod_{g=1}^G (\text{max\_cap}_g + 1)$ (exponentiel en $G$)
+**Pire cas** : $\boxed{T(n) = O(nk^2G^2)}$
 
 
 ## 3. Algorithme DP (C++)
 
-Même logique que DP R, mais avec `unordered_map` et optimisations C++.
-
-### Analyse détaillée
-
-**Prétraitement** : $O(nG)$
-
-- Parsing avec `stringstream` : $O(n\bar{g})$
-- Construction matrice : $O(nG)$
-
-**Programmation dynamique**
-
-Pour chaque position $p$, chaque état $S_p$, chaque item $n$ :
-
-* Parse key : $O(G)$
-* Vérifier si utilisé (std::find) : $O(p)$
-* Calculer compteurs : $O(G)$
-* Make key : $O(G)$
-* Hash + lookup : $O(G)$ pour le hashing, $O(1)$ amorti pour l'accès
-* Insert/update : $O(1)$ amorti
-
-Coût par transition : $O(p + G)$
-
-Si $G \geq k$ : $T_{\text{DP}} = O(SnkG)$
+Même logique que DP R, voici la complexité.
 
 ### Complexité temporelle
 
-$$\boxed{T_{\text{DP-C++}}(n) = O(S n k G)}$$
+$$\boxed{T_{\text{DP-R}}(n) = O(n k^2 G^2)}$$
 
-**Meilleur cas** : $\boxed{T(n) = O(nkG)}$ si $S = O(1)$
+**Meilleur cas** : $\boxed{T(n) = O(nk^2)}$
 
-**Cas moyen** : $\boxed{T(n) = O(SnkG)}$
+**Cas moyen** : $\boxed{T(n) = O(nk^2\bar g^2)}$ 
 
-**Pire cas** : $\boxed{T(n) = O(MnkG)}$ avec $M$ exponentiel en $G$
-
-
-**Note** : Même complexité asymptotique que DP R, mais facteur constant 5-20× plus petit en pratique.
+**Pire cas** : $\boxed{T(n) = O(nk^2G^2)}$
 
 
 ## 4. Algorithme dynamique amélioré (C++)
@@ -668,8 +623,8 @@ Si $nkBG \gg n \log n$ : $\boxed{T_{\text{Beam}}(n) = O(nkBG)}$
 | Algorithme           | Meilleur cas            | Cas moyen              | Pire cas                    |
 |----------------------|-------------------------|------------------------|-----------------------------|
 | **Naïf R**           | $O(kn)$                 | $O(kn\bar{g})$         | $O(knG)$                    |
-| **DP R**             | $O(nkG)$                | $O(SnkG)$              | $O(MnkG)$                   |
-| **DP C++**           | $O(nkG)$                | $O(SnkG)$              | $O(MnkG)$                   |
+| **DP R**             | $O(nk^2)$               | $O(nk^2\bar{g^2})$     | $O(nk^2G^2)$                |
+| **DP C++**           | $O(nk^2)$               | $O(nk^2\bar{g^2})$     | $O(nk^2G^2)$                |
 | **Beam C++**         | $O(n \log n + nkG)$     | $O(n \log n + nkBG)$   | $O(n \log n + nkBG)$        |
 
 
@@ -686,7 +641,6 @@ n_values <- seq(100, 2000, length.out = 200)
 G <- 5
 k <- 20
 g_bar <- 2  # nombre moyen de groupes par item
-S <- 200    # États moyens atteints
 B <- 1000   # Beam size
 M <- (3+1)^G  # Pire cas avec cap_g = 3 pour chaque groupe
 
@@ -694,8 +648,8 @@ M <- (3+1)^G  # Pire cas avec cap_g = 3 pour chaque groupe
 df_moyen <- data.frame(
   n = n_values,
   Naive = k * n_values * g_bar,
-  DP_R = S * n_values * k * G,
-  DP_Cpp = S * n_values * k * G / 10,  # Facteur constant 10x plus petit
+  DP_R = n_values * k^2 * g_bar * g_bar,
+  DP_Cpp = n_values * k^2 * g_bar * g_bar / 10,  # Facteur constant 10x plus petit
   Beam = n_values * log(n_values) + B * n_values * k * G
 )
 
@@ -1078,9 +1032,8 @@ Les pentes estimées permettent de comparer directement la croissance du temps d
 | Contexte | Algorithme recommandé | Justification |
 |----------|----------------------|---------------|
 | Petits problèmes (n<100, G<3, k<10) | **DP C++** | Simple, rapide, optimal |
-| Moyens problèmes (n<1000, G<5, k<20) | **Naïf R** ou **DP R** | Optimal garanti, performance acceptable |
+| Moyens problèmes (n<1000, G<5, k<20) | **Naïf R** ou **DP C++** | Optimal (garanti pour DP C++), performance acceptable |
 | Grands problèmes (n>1000 ou G>5) | **Naïf R** | Seul viable, quasi-optimal |
-| Production avec contraintes temps | **Beam C++** (B=5000) | Prédictible, contrôlable |
 | Recherche d'optimum prouvé | **DP C++** si faisable | Exact mais peut échouer |
 
 
