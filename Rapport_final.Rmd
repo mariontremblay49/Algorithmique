@@ -314,21 +314,31 @@ Pour améliorer l'algorithme, nous utilisons une approche approximative avec Bea
 
 ### Un exemple
 
-On reprend l'exemple précédent avec un **beam de taille 5** :
+On reprend l'exemple précédent avec un **beam de taille 100** :
 
 ```{r, warning=FALSE, echo=FALSE, message=FALSE}
 library(Rcpp)
 
-res <- ranking_max_dp_heap_cpp(data_mat, k, max_par_groupe, beam_size = 5)
+res <- ranking_max_dp_heap_cpp(data_mat, k, max_par_groupe, poids_positions, beam_size = 100)
+print(res)
+```
+
+On reprend l'exemple précédent, avec un **beam de taille différente égale à 5000** :
+
+```{r, warning=FALSE, echo=FALSE, message=FALSE}
+library(Rcpp)
+
+res <- ranking_max_dp_heap_cpp(data_mat, k, max_par_groupe, poids_positions, beam_size = 5000)
 print(res)
 ```
 
 * Le champ `approximation` indique si la solution a été tronquée par le beam.
 
-* Même avec un beam très limité, l'algorithme tend à sélectionner les éléments avec les meilleurs scores** tout en respectant les contraintes de groupe.
+* Même avec un beam très limité, l'algorithme tend à sélectionner les éléments avec les meilleurs scores** tout en respectant les contraintes de groupe. Augmenter la taille du beam ne fait qu'augmenter légèrement la fonction objective. 
+
 * La programmation dynamique combinée à un heap permet de garder les meilleures solutions intermédiaires sans générer tous les états possibles, ce qui est crucial pour de grands ensembles de données.
 
-
+ 
 # 5. Comparaison de la performance
 
 ```{r}
