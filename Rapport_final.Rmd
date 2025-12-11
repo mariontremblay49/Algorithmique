@@ -300,14 +300,12 @@ Pour améliorer l'algorithme, nous utilisons une approche approximative avec Bea
 
    * le score cumulé des éléments sélectionnés,
    * le compteur d'éléments choisis par groupe,
-   * une clé unique codant ces compteurs.
+   * les Id des éléments sélectionnés précédemment.
 
-2. Trier les éléments par score décroissant.
-
-3. Pour chaque position :
+2. Pour chaque position :
 
    * Pour chaque état conservé, on génère de nouveaux états en ajoutant chaque élément disponible respectant les contraintes.
-   * On ajoute ces états dans un max-heap et ne garder que beam_size meilleurs états (pruning).
+   * On ajoute ces états dans un tas et ne garde que "beam_size" meilleurs états (pruning).
 
 3. À la fin, on reconstruit la sélection à partir du meilleur état final.
 
