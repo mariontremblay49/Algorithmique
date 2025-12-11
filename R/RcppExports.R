@@ -5,8 +5,8 @@ ranking_max_cpp <- function(data, k, max_par_groupe, poids_positions) {
     .Call(`_Ranking_ranking_max_cpp`, data, k, max_par_groupe, poids_positions)
 }
 
-ranking_max_dp_heap_cpp <- function(data, k, max_par_groupe, poids_positions = NULL, beam_size = 5000L) {
-    .Call(`_Ranking_ranking_max_dp_heap_cpp`, data, k, max_par_groupe, poids_positions, beam_size)
+ranking_max_dp_heap_cpp <- function(data, k, max_par_groupe, poids_positions = NULL, beam_size = 5000L, verbose = FALSE) {
+    .Call(`_Ranking_ranking_max_dp_heap_cpp`, data, k, max_par_groupe, poids_positions, beam_size, verbose)
 }
 
 rcpp_hello <- function() {

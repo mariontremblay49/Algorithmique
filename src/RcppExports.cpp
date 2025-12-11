@@ -25,8 +25,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // ranking_max_dp_heap_cpp
-Rcpp::List ranking_max_dp_heap_cpp(Rcpp::DataFrame data, int k, Rcpp::List max_par_groupe, Rcpp::Nullable<Rcpp::NumericVector> poids_positions, int beam_size);
-RcppExport SEXP _Ranking_ranking_max_dp_heap_cpp(SEXP dataSEXP, SEXP kSEXP, SEXP max_par_groupeSEXP, SEXP poids_positionsSEXP, SEXP beam_sizeSEXP) {
+Rcpp::List ranking_max_dp_heap_cpp(Rcpp::DataFrame data, int k, Rcpp::List max_par_groupe, Rcpp::Nullable<Rcpp::NumericVector> poids_positions, int beam_size, bool verbose);
+RcppExport SEXP _Ranking_ranking_max_dp_heap_cpp(SEXP dataSEXP, SEXP kSEXP, SEXP max_par_groupeSEXP, SEXP poids_positionsSEXP, SEXP beam_sizeSEXP, SEXP verboseSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -35,7 +35,8 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< Rcpp::List >::type max_par_groupe(max_par_groupeSEXP);
     Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::NumericVector> >::type poids_positions(poids_positionsSEXP);
     Rcpp::traits::input_parameter< int >::type beam_size(beam_sizeSEXP);
-    rcpp_result_gen = Rcpp::wrap(ranking_max_dp_heap_cpp(data, k, max_par_groupe, poids_positions, beam_size));
+    Rcpp::traits::input_parameter< bool >::type verbose(verboseSEXP);
+    rcpp_result_gen = Rcpp::wrap(ranking_max_dp_heap_cpp(data, k, max_par_groupe, poids_positions, beam_size, verbose));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -52,7 +53,7 @@ END_RCPP
 
 static const R_CallMethodDef CallEntries[] = {
     {"_Ranking_ranking_max_cpp", (DL_FUNC) &_Ranking_ranking_max_cpp, 4},
-    {"_Ranking_ranking_max_dp_heap_cpp", (DL_FUNC) &_Ranking_ranking_max_dp_heap_cpp, 5},
+    {"_Ranking_ranking_max_dp_heap_cpp", (DL_FUNC) &_Ranking_ranking_max_dp_heap_cpp, 6},
     {"_Ranking_rcpp_hello", (DL_FUNC) &_Ranking_rcpp_hello, 0},
     {NULL, NULL, 0}
 };
