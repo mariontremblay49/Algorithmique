@@ -233,14 +233,27 @@ Chaque état est défini par :
 
 La relation de récurrence est :
 $$
-DP[s][c][S] = max\{ DP [p-1][c'][S'] + w[p] s[i] \}
+DP[p][\alpha] = max\{ DP[p][\alpha], DP [p-1][\alpha'] + w_p s_i \}
 $$
+Sous contraintes :
+* $i$ n'a pas encore été utlisé 
+* $\alpha=\alpha'+b(i)$
+* $\alpha'_g \le \alpha_g \quad \forall G$
+
 avec 
 
-* $p$ : nombre d'éléments
-* $c=(c[1], c[2], ..., c[G])$ : vecteur des compteurs par groupe
-* $S$ : ensemble des éléments déjà utilisés
-* $DP[s][c][S]$ : meilleur score pour avoir sélectionné p éléments avec configuration $c$ et ensemble $S$.
+* $p$ : la position
+* $\alpha=(\alpha[1], \alpha[2], ..., c[G])$ : vecteur des compteurs par groupe
+* $DP[p][\alpha]$ : meilleur score pour avoir sélectionné p éléments avec configuration $\alpha$.
+* $b[i] = (b[i]_1, b[i]_2, \dots, b[i]_G)$ : vecteur binaire de groupe où :
+\[
+b[i]_g = 
+\begin{cases}
+1 & \text{si l’élément } i \text{ appartient au groupe } g \\[6pt]
+0 & \text{sinon}
+\end{cases}
+\]
+
 
 ## Exemple concret
 
@@ -593,8 +606,8 @@ Pour chaque position $p = 1, \ldots, k$ :
   - Contraintes : $O(G)$ (vérifier tous les groupes)
   - Copie d'état si valide : $O(p + G)$
   
-- **Beam pruning** (si $|\text{DP_curr}| > B$) :
-  - Tri partiel (`nth_element`) : $O(|\text{DP_curr}|)$
+- **Beam pruning** (si $|\text{DP curr}| > B$) :
+  - Tri partiel (`nth_element`) : $O(|\text{DP curr}|)$
   - Conservation des $B$ meilleurs états
 
 **Coût par position :**
@@ -1063,7 +1076,7 @@ Les pentes estimées permettent de comparer directement la croissance du temps d
 
 | Contexte | Algorithme recommandé | Justification |
 |----------|----------------------|---------------|
-| Petits problèmes (n<100, G<3, k<10) | **DP C++** | Rapide, optimal |
+| Petits problèmes (n<100, G<3, k<10) | **Naïf R ou DP C++** | Rapide, optimal (garanti pour DP C++) |
 | Moyens problèmes (n<1000, G<5, k<20) | **Naïf R** ou **DP C++** | Optimal (garanti pour DP C++), performance acceptable |
 | Grands problèmes (n>1000 ou G>5) | **Naïf R** | Seul viable, quasi-optimal |
 | Recherche d'optimum prouvé | **DP C++** si faisable | Exact mais peut échouer |
