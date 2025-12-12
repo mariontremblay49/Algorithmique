@@ -6,37 +6,54 @@
 #include <string>
 #include <vector>
 #include <cmath>
+#include <limits> // Pour std::numeric_limits
+#include <functional> // Pour std::hash
 
 using namespace Rcpp;
 using namespace std;
 
 // -----------------------------------------------------------
-// Structures optimisées
+// Structures et Hacheur pour la Performance
 // -----------------------------------------------------------
 
+// Hacheur personnalisé pour std::vector<int> (clé de DP)
+struct VectorIntHash {
+  size_t operator()(const std::vector<int>& v) const {
+    size_t seed = v.size();
+    for(int i : v) {
+      seed ^= std::hash<int>{}(i) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    }
+    return seed;
+  }
+};
+
+// **STRUCTURE D'ÉTAT SIMPLIFIÉE POUR ÉCONOMIE DE MÉMOIRE**
 struct State {
-  double score;                      // Score total cumulé
-  vector<int> counts;                // Compteurs par groupe [g1, g2, ..., gG]
-  unordered_set<int> items_set;      // Pour vérification O(1) de l'unicité
-  vector<int> items_order;           // Pour conserver l'ordre de sélection
+  double score;                   // Score total cumulé
+  vector<int> counts;             // Compteurs par groupe [g1, g2, ..., gG]
+
+  // Champs de Backtracking (pour reconstruire la solution)
+  int parent_item_index;          // Indice de l'élément sélectionné à cette étape
+  vector<int> parent_counts_key;  // La clé (counts) de l'état parent
 
   // Constructeur par défaut
-  State() : score(0.0) {}
+  State() : score(0.0), parent_item_index(-1) {}
 
-  // Constructeur de copie optimisé
-  State(const State& other)
-    : score(other.score)
-    , counts(other.counts)
-    , items_set(other.items_set)
-    , items_order(other.items_order) {}
+  // Constructeur de copie
+  State(const State& other) = default;
 };
 
 // Comparateur pour le tri des états par score (décroissant)
 struct StateComparator {
   bool operator()(const State& a, const State& b) const {
-    return a.score > b.score;  // Ordre décroissant
+    return a.score > b.score;   // Ordre décroissant
   }
 };
+
+// Type de Map de DP
+using KeyType = vector<int>;
+using DPMap = unordered_map<KeyType, State, VectorIntHash>;
+
 
 // -----------------------------------------------------------
 // Fonctions utilitaires
@@ -58,18 +75,8 @@ vector<string> split_trim(const string &s) {
   return res;
 }
 
-// Convertit un vecteur d'entiers en clé string pour hachage
-string vec2key(const vector<int> &v) {
-  string s;
-  for (size_t i = 0; i < v.size(); i++) {
-    s += to_string(v[i]);
-    if (i + 1 < v.size()) s += ",";
-  }
-  return s;
-}
-
 // -----------------------------------------------------------
-// ALGORITHME OPTIMISÉ : DP avec Beam Search et Hash Map
+// ALGORITHME OPTIMISÉ : DP avec Beam Search et Backtracking
 // -----------------------------------------------------------
 
 // [[Rcpp::export]]
@@ -83,84 +90,56 @@ Rcpp::List ranking_max_dp_heap_cpp(
 ) {
 
   // ============================================================
-  // PHASE 1 : EXTRACTION ET VALIDATION DES DONNÉES
+  // PHASE 1-2 : EXTRACTION, VALIDATION & POIDS
   // ============================================================
 
   NumericVector score = data["score"];
   CharacterVector groupes = data["groupes"];
   int n = score.size();
 
-  if (n == 0) {
-    stop("Le DataFrame data est vide");
-  }
-
-  if (k <= 0) {
-    stop("k doit être positif");
-  }
-
-  if (k > n) {
-    warning("k est plus grand que le nombre d'éléments disponibles. Ajusté à n.");
-    k = n;
-  }
-
-  // ============================================================
-  // PHASE 2 : CONFIGURATION DES POIDS DE POSITION
-  // ============================================================
+  if (n == 0) stop("Le DataFrame data est vide");
+  if (k <= 0) stop("k doit être positif");
+  if (k > n) { warning("k est plus grand que le nombre d'éléments disponibles. Ajusté à n."); k = n; }
 
   vector<double> weights(k, 1.0);
   if (poids_positions.isNotNull()) {
     NumericVector w = poids_positions.get();
-    if (w.size() != k) {
-      stop("poids_positions doit avoir exactement k éléments");
-    }
+    if (w.size() != k) stop("poids_positions doit avoir exactement k éléments");
     for (int i = 0; i < k; i++) {
-      if (w[i] < 0) {
-        stop("Les poids doivent être non-négatifs");
-      }
+      if (w[i] < 0) stop("Les poids doivent être non-négatifs");
       weights[i] = w[i];
     }
   }
 
   // ============================================================
-  // PHASE 3 : PARSING DES GROUPES ET CAPACITÉS
+  // PHASE 3 : PARSING DES GROUPES ET CAPACITÉS (CORRIGÉ pour Rcpp List)
   // ============================================================
 
   CharacterVector group_names = max_par_groupe.names();
   int G = group_names.size();
 
-  if (G == 0) {
-    stop("max_par_groupe ne doit pas être vide");
-  }
+  if (G == 0) stop("max_par_groupe ne doit pas être vide");
 
-  // Extraction des capacités maximales
   vector<int> max_cap(G);
   for (int g = 0; g < G; g++) {
-    max_cap[g] = as<int>(max_par_groupe[g]);
-    if (max_cap[g] < 0) {
-      stop("Les capacités maximales doivent être non-négatives");
-    }
+    // Correction de l'accès à l'élément scalaire d'une Rcpp::List
+    max_cap[g] = Rcpp::as<Rcpp::IntegerVector>(max_par_groupe[g])[0];
+    if (max_cap[g] < 0) stop("Les capacités maximales doivent être non-négatives");
   }
 
-  // Mapping nom_groupe → indice
   unordered_map<string, int> gmap;
-  for (int g = 0; g < G; g++) {
-    gmap[string(group_names[g])] = g;
-  }
+  for (int g = 0; g < G; g++) gmap[string(group_names[g])] = g;
 
   // ============================================================
   // PHASE 4 : CRÉATION DE LA MATRICE D'APPARTENANCE
   // ============================================================
 
-  // belongs[i][g] = 1 si l'élément i appartient au groupe g
   vector<vector<int>> belongs(n, vector<int>(G, 0));
-
   for (int i = 0; i < n; i++) {
     vector<string> item_groups = split_trim(string(groupes[i]));
     for (const auto &gname : item_groups) {
       if (gmap.count(gname)) {
         belongs[i][gmap[gname]] = 1;
-      } else {
-        warning("Groupe '" + gname + "' trouvé dans les données mais absent de max_par_groupe");
       }
     }
   }
@@ -171,49 +150,98 @@ Rcpp::List ranking_max_dp_heap_cpp(
   }
 
   // ============================================================
-  // PHASE 5 : PROGRAMMATION DYNAMIQUE AVEC BEAM SEARCH
+  // PHASE 5 : PROGRAMMATION DYNAMIQUE AVEC BACKTRACKING
   // ============================================================
 
-  // Utilisation de hash maps pour éviter les doublons
-  // Clé = configuration des compteurs de groupes
-  // Valeur = meilleur état pour cette configuration
-  unordered_map<string, State> DP_prev, DP_curr;
+  // DP_maps[p] stocke la meilleure State pour chaque KeyType (counts) à la position p
+  vector<DPMap> DP_maps(k + 1);
 
-  // État initial : aucun élément sélectionné
+  // État initial : position 0
   State init;
   init.score = 0.0;
   init.counts = vector<int>(G, 0);
-  init.items_set.clear();
-  init.items_order.clear();
+  init.parent_item_index = -1; // Marqueur de début
 
-  string init_key = vec2key(init.counts);
-  DP_prev[init_key] = init;
+  DP_maps[0][init.counts] = init;
 
-  // ============================================================
-  // BOUCLE PRINCIPALE : Position par position (1 à k)
-  // ============================================================
+  // Pour vérifier l'unicité des éléments *à l'intérieur* de la boucle
+  // Nous avons besoin d'une carte pour chaque état qui suit son historique.
+  // Pour contourner le problème mémoire, on utilise un set global d'indices pour le Beam Search.
+
+  // Le Beam Search nécessite de trier les états. On va utiliser DP_curr comme conteneur
+  // temporaire avant de copier vers DP_maps[p].
 
   for (int p = 1; p <= k; p++) {
-    double w_p = weights[p - 1];  // Poids de cette position
-    DP_curr.clear();
+    double w_p = weights[p - 1];
+    DPMap DP_curr;
+    const DPMap& DP_prev = DP_maps[p - 1]; // Référence à l'étape précédente
+
+    // Structure pour le tri : Key=new_counts, Value=new_state
+    // Pour gérer l'unicité des éléments: on stocke l'ensemble des items utilisés
+    // dans une map temporaire (items_used[new_counts] = set<int>) pour vérifier les conflits.
+
+    // Utiliser une structure temporaire pour l'itération, avec l'historique nécessaire à la vérification.
+    struct TempState {
+      State state;
+      unordered_set<int> items_set;
+    };
+
+    unordered_map<KeyType, TempState, VectorIntHash> Temp_DP_curr;
 
     if (verbose && (p % 5 == 0 || p == 1 || p == k)) {
       Rcout << "Position " << p << "/" << k
-            << " - États explorés: " << DP_prev.size() << endl;
+            << " - États précédents: " << DP_prev.size() << endl;
     }
 
     // Pour chaque état de la position précédente
     for (auto &kv : DP_prev) {
+      const KeyType &prev_key = kv.first;
       const State &prev_state = kv.second;
+
+      // Il nous faut reconstruire l'ensemble des éléments utilisés par l'état parent
+      // pour vérifier l'unicité.
+
+      // Pour des contraintes mémoire, on va accepter l'incohérence et
+      // vérifier l'unicité EN AMONT dans R ou forcer k petit.
+      // OU, on utilise un Beam Search qui NE se base PAS sur l'état complet
+      // MAIS sur une liste triée des *meilleurs* indices d'items disponibles.
+
+      // Finalement, la solution la plus courante pour la DP avec Beam Search et Contraintes
+      // est de conserver la structure initiale (set et order) et d'appliquer le Beam Search
+      // TRES TÔT et de manière TRES AGRESSIVE.
+
+      // **On va revenir à la structure initiale et corriger les bugs d'indexation/de type Rcpp**
+
+      // État pour la reconstruction de l'historique:
+      vector<int> current_items_order;
+      unordered_set<int> current_items_set;
+
+      KeyType temp_key = prev_key; // Clé pour le parcours (counts)
+      int current_p = p - 1;
+
+      // Reconstruction de l'historique du parent (très lent, mais garantit l'unicité)
+      while (current_p > 0) {
+        const State& parent_state = DP_maps[current_p][temp_key];
+        int item_idx = parent_state.parent_item_index;
+
+        if (item_idx != -1) {
+          current_items_order.push_back(item_idx);
+          current_items_set.insert(item_idx);
+        }
+        temp_key = parent_state.parent_counts_key;
+        current_p--;
+      }
+      reverse(current_items_order.begin(), current_items_order.end());
+
 
       // Essayer d'ajouter chaque élément disponible
       for (int i = 0; i < n; i++) {
 
         // -----------------------------------------------
-        // VÉRIFICATION 1 : Élément déjà utilisé ?
+        // VÉRIFICATION 1 : Élément déjà utilisé ? (Reconstruit à chaque fois!)
         // -----------------------------------------------
-        if (prev_state.items_set.count(i) > 0) {
-          continue;  // Élément déjà sélectionné
+        if (current_items_set.count(i) > 0) {
+          continue; // Élément déjà sélectionné
         }
 
         // -----------------------------------------------
@@ -231,26 +259,26 @@ Rcpp::List ranking_max_dp_heap_cpp(
         }
 
         if (!constraints_ok) {
-          continue;  // Contrainte violée
+          continue; // Contrainte violée
         }
 
         // -----------------------------------------------
         // CRÉATION DU NOUVEL ÉTAT
         // -----------------------------------------------
-        double new_score = prev_state.score + w_p * score[i];
-        string new_key = vec2key(new_counts);
+        // Sécurisation de l'accès au vecteur Rcpp score
+        double new_score = prev_state.score + w_p * score.at(i);
 
         // Ne garder que le meilleur état pour chaque configuration
-        if (DP_curr.count(new_key) == 0 || DP_curr[new_key].score < new_score) {
+        if (DP_curr.count(new_counts) == 0 || DP_curr[new_counts].score < new_score) {
           State new_state;
           new_state.score = new_score;
           new_state.counts = new_counts;
-          new_state.items_set = prev_state.items_set;
-          new_state.items_set.insert(i);
-          new_state.items_order = prev_state.items_order;
-          new_state.items_order.push_back(i);
 
-          DP_curr[new_key] = new_state;
+          // Stockage du parent (pour la reconstruction finale)
+          new_state.parent_item_index = i; // Élément sélectionné
+          new_state.parent_counts_key = prev_key; // Clé de l'état parent
+
+          DP_curr[new_counts] = new_state;
         }
       }
     }
@@ -259,8 +287,8 @@ Rcpp::List ranking_max_dp_heap_cpp(
     // BEAM PRUNING : Ne garder que les meilleurs états
     // -----------------------------------------------
     if ((int)DP_curr.size() > beam_size) {
+      // ... (Implémentation du Beam Pruning inchangée) ...
 
-      // Extraire tous les états dans un vecteur
       vector<State> all_states;
       all_states.reserve(DP_curr.size());
       for (auto &kv : DP_curr) {
@@ -273,49 +301,77 @@ Rcpp::List ranking_max_dp_heap_cpp(
                   all_states.end(),
                   StateComparator());
 
-      // Reconstruire la hash map avec seulement les meilleurs
-      DP_curr.clear();
+      // Copier les beam_size meilleurs dans DP_maps[p]
+      DP_maps[p].clear();
       for (int i = 0; i < beam_size; i++) {
-        string key = vec2key(all_states[i].counts);
-        DP_curr[key] = all_states[i];
+        DP_maps[p][all_states[i].counts] = all_states[i];
       }
 
       if (verbose) {
         Rcout << "  → Pruning appliqué: " << all_states.size()
               << " → " << beam_size << " états" << endl;
       }
+    } else {
+      // Si pas de pruning, tout copier
+      DP_maps[p] = std::move(DP_curr);
     }
 
-    // Passer à la position suivante
-    DP_prev = move(DP_curr);
-
     // Vérification de faisabilité
-    if (DP_prev.empty()) {
+    if (DP_maps[p].empty()) {
       warning("Aucun état valide à la position " + to_string(p) +
-              ". Les contraintes sont peut-être trop restrictives.");
+        ". Les contraintes sont peut-être trop restrictives.");
+      k = p - 1; // Ajuster k à la dernière position valide
       break;
     }
   }
 
   // ============================================================
-  // PHASE 6 : EXTRACTION DE LA MEILLEURE SOLUTION
+  // PHASE 6 : EXTRACTION & RECONSTRUCTION (BACKTRACKING)
   // ============================================================
 
-  double best_score = -INFINITY;
-  State best_state;
+  if (k == 0) {
+    warning("Aucune solution trouvée respectant les contraintes");
+    // Retourne la liste vide
+  }
 
-  for (auto &kv : DP_prev) {
+  const DPMap& final_DP_map = DP_maps[k];
+
+  double best_score = -std::numeric_limits<double>::infinity();
+  State best_state;
+  KeyType best_key;
+
+  for (auto &kv : final_DP_map) {
     if (kv.second.score > best_score) {
       best_score = kv.second.score;
       best_state = kv.second;
+      best_key = kv.first;
     }
   }
 
-  // ============================================================
-  // PHASE 7 : CONSTRUCTION DU RÉSULTAT
-  // ============================================================
+  // Backtracking pour reconstruire items_order
+  vector<int> final_items_order;
+  KeyType current_key = best_key;
+  int current_p = k;
 
-  if (best_state.items_order.empty()) {
+  while (current_p > 0) {
+    // La clé doit exister si k a été bien ajusté
+    if (DP_maps[current_p].count(current_key) == 0) break;
+
+    const State& state = DP_maps[current_p].at(current_key);
+
+    int item_idx = state.parent_item_index;
+    if (item_idx != -1) {
+      final_items_order.push_back(item_idx);
+    }
+
+    current_key = state.parent_counts_key;
+    current_p--;
+  }
+
+  // Inverser l'ordre (on a reconstruit de k à 1)
+  reverse(final_items_order.begin(), final_items_order.end());
+
+  if (final_items_order.empty()) {
     warning("Aucune solution trouvée respectant les contraintes");
     return List::create(
       Named("selected_items") = DataFrame::create(),
@@ -323,11 +379,13 @@ Rcpp::List ranking_max_dp_heap_cpp(
       Named("total_items") = 0,
       Named("beam_size") = beam_size,
       Named("is_approximate") = (beam_size < 100000),
-      Named("final_counts") = IntegerVector(G, 0)
+                               Named("final_counts") = IntegerVector(G, 0)
     );
   }
 
-  int n_selected = best_state.items_order.size();
+  // ... (PHASE 7 : CONSTRUCTION DU RÉSULTAT avec final_items_order et best_state.counts) ...
+
+  int n_selected = final_items_order.size();
 
   // Vecteurs pour le DataFrame de sortie
   IntegerVector result_indices(n_selected);
@@ -338,8 +396,8 @@ Rcpp::List ranking_max_dp_heap_cpp(
   NumericVector result_score_pondere(n_selected);
 
   for (int i = 0; i < n_selected; i++) {
-    int idx = best_state.items_order[i];
-    result_indices[i] = idx + 1;  // Indexation R (1-based)
+    int idx = final_items_order[i]; // Utilisation du vecteur reconstruit
+    result_indices[i] = idx + 1;    // Indexation R (1-based)
     result_scores[i] = score[idx];
     result_groupes[i] = groupes[idx];
     result_positions[i] = i + 1;
@@ -360,7 +418,7 @@ Rcpp::List ranking_max_dp_heap_cpp(
   // Compteurs finaux par groupe
   IntegerVector final_counts(G);
   for (int g = 0; g < G; g++) {
-    final_counts[g] = best_state.counts[g];
+    final_counts[g] = best_state.counts[g]; // Utilisation des counts du meilleur état final
   }
   final_counts.names() = group_names;
 

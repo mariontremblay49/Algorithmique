@@ -345,63 +345,19 @@ print(res)
 
 * Le champ `approximation` indique si la solution a été tronquée par le beam.
 
-* Même avec un beam très limité, l'algorithme tend à sélectionner les éléments avec les meilleurs scores** tout en respectant les contraintes de groupe. Augmenter la taille du beam ne fait qu'augmenter légèrement la fonction objective. 
+* Même avec un beam très limité, l'algorithme tend à sélectionner les éléments avec les meilleurs scores** tout en respectant les contraintes de groupe.  
 
 * La programmation dynamique combinée à un heap permet de garder les meilleures solutions intermédiaires sans générer tous les états possibles, ce qui est crucial pour de grands ensembles de données.
 
  
 # 5. Comparaison de la performance
 
-```{r}
-
-set.seed(13)
-
-num_instances <- 50   # nombre d'instances
-n_items <- 10         # items par instance
-k <- 5                # positions
-ratios1 <- numeric(num_instances)
-ratios2 <- numeric(num_instances)
-
-
-df <- read.csv("amazon_products_250.csv", stringsAsFactors = FALSE)
-df$sponsored <- ifelse(df$sponsored == "True", "Sponsored", "Not_sponsored")
-
-# Poids de position 
-poids_positions <- seq(k, 1, by = -1) 
-
-# Création des listes de contraintes
-liste_cat <- setNames(as.list(rep(2, length(unique(df$category)))),
-                      unique(df$category))
-max_par_groupe <- c(liste_cat, list(Not_sponsored = 9))
-
-for (i in 1:num_instances)
-{
-  echantillon <- df[sample(nrow(df), min(n_items, nrow(df))), ]
-  data_mat <- data.frame(
-    id = 1:nrow(echantillon),
-    score = echantillon$score,
-    groupes = paste(echantillon$category, 
-                    echantillon$sponsored, sep = ",")
-  )
-  V_g <- ranking_naif_max(data_mat,k,max_par_groupe,poids_positions)$best_score
-  V_opt <- ranking_max_cpp(data_mat,k,max_par_groupe,poids_positions)$best_score
-  V_dp_heap <- ranking_max_dp_heap_cpp(data_mat,k,max_par_groupe,poids_positions)$best_score
-  
-  ratios1[i] <- V_g / V_opt
-  ratios2[i] <- V_dp_heap / V_opt
-  
-}
-
-boxplot(ratios1, ratios2, names=c("Naif", "DP Heap"),
-        main="Comparaison des ratios valeur trouvée / optimum n=10",
-        ylab="Ratio / Optimum", col=c("red","blue"))
-```
 
 ```{r}
 set.seed(13)
 
 num_instances <- 50   # nombre d'instances
-n_items <- 200         # items par instance
+n_items <- 100         # items par instance
 k <- 5                # positions
 ratios1 <- numeric(num_instances)
 ratios2 <- numeric(num_instances)
@@ -441,7 +397,7 @@ boxplot(ratios1, ratios2, names=c("Naif", "DP Heap"),
         ylab="Ratio / Optimum", col=c("red","blue"))
 ```
 
-On constate que l'approche heuristique fonctionne très bien alors que la programmation dynamique avec tas ne trouve pas toujours la solution optimale. 
+On constate que l'approche heuristique et la programmation dynamique avec tas fonctionnent. Ils trouvent les mêmes solutions que l'algorithme de programmation dynamique standard. 
 
 Si l'algorithme naif trouve presque toujours la solution optimale, voici un exemple où ce n'est pas le cas :
 
@@ -452,7 +408,7 @@ data <- data.frame(
   groupes = c("A,S", "A,S", "A", "B,S", "C,S", "C,S")
 )
 max_par_groupe <- list(A = 2, B = 2, C = 2, S = 4)
-poids_positions <- seq(k, 1, by = -1) 
+poids_positions <- seq(5, 1, by = -1) 
 
 cat("Resultat naif\n")
 resultat_naif <- ranking_naif_max(data, 5, max_par_groupe, poids_positions)
@@ -463,6 +419,27 @@ resultat_dp <- ranking_max_cpp(data, 5, max_par_groupe, poids_positions)
 print(resultat_dp)
 ```
 
+De même, si le paramètre beam_size est trop faible, la solution trouvée par l'algorithme de programmation dynamique avec tas n'est pas optimale :
+
+```{r}
+data <- data.frame(
+  id = 1:6,
+  score = c(5, 4.8, 4.7, 4.6, 4, 3),
+  groupes = c("A,S", "A,S", "A", "B,S", "C,S", "C,S")
+)
+max_par_groupe <- list(A = 2, B = 2, C = 2, S = 4)
+poids_positions <- seq(5, 1, by = -1) 
+
+cat("Resultat beam search\n")
+resultat_beam_search <- ranking_max_dp_heap_cpp(data, 5, max_par_groupe, poids_positions, beam_size = 1)
+print(resultat_beam_search)
+
+cat("Resultat programmation dynamique\n")
+resultat_dp <- ranking_max_cpp(data, 5, max_par_groupe, poids_positions)
+print(resultat_dp)
+```
+
+Remarque : Un beam_size égal à revient au même que l'algorithme naïf, on garde le meilleur état à chaque étape. 
 
 
 # 6. Complexité des algorithmes (par le calcul)
@@ -588,6 +565,7 @@ $$\boxed{T_{\text{DP-R}}(n) = O(n k^2 G^2)}$$
 
 **Principe :** Programmation dynamique avec hachage et beam pruning pour éviter l'explosion combinatoire.
 
+
 ### Analyse de l'algorithme
 
 **Phase 1-4 - Prétraitement :** $O(n \times \bar{g})$
@@ -600,33 +578,33 @@ $$\boxed{T_{\text{DP-R}}(n) = O(n k^2 G^2)}$$
 Pour chaque position $p = 1, \ldots, k$ :
 
 - Nombre d'états explorés : $B$ (beam_size)
-- Pour chaque état : parcourir $n$ candidats
-- Vérifications par candidat :
-  - Unicité : $O(1)$ (hash lookup)
+- Pour chaque état parent :
+  - Reconstruction d'historique (Unicité) : $O(p \cdot G)$ (par le *backtracking* sur les $p$ étapes précédentes)
+- Pour chaque candidat $n$ :
+  - Vérifications par candidat :
+  - Unicité : $O(1)$ (hash lookup sur l'historique reconstruit)
   - Contraintes : $O(G)$ (vérifier tous les groupes)
-  - Copie d'état si valide : $O(p + G)$
-  
+  - Copie d'état si valide : $O(G)$ (stockage de l'état allégé pour le *backtracking*)
+
 - **Beam pruning** (si $|\text{DP curr}| > B$) :
   - Tri partiel (`nth_element`) : $O(|\text{DP curr}|)$
   - Conservation des $B$ meilleurs états
 
 **Coût par position :**
-$$T_{\text{position}}(p) = O(Bn(G + p))$$
+$$T_{\text{position}}(p) = O(BpG + BnG) = O(BG(n + p))$$
 
 **Coût total de la boucle :**
-$$T_{\text{boucle}} = \sum_{p=1}^{k} O(Bn(G + p)) = O(Bnk(G + k))$$
+$$T_{\text{boucle}} = \sum_{p=1}^{k} O(BG(n + p)) = O(BG(nk + k^2))$$
 
 ### Complexité temporelle
 
-$$\boxed{T_{\text{DP}}(n) = O(n\bar{g}) + O(Bnk(G + k))}$$
+$$\boxed{T_{\text{DP}}(n) = O(n\bar{g}) + O(BG(nk + k^2))}$$
 
-**Meilleur cas** : ($G = 1$) : $T(n) = O(Bnk)$
+**Meilleur cas** : ($G = 1$) : $T(n) = O(B(nk + k^2))$
 
-**Cas moyen** : ${T(n) = O(Bnk(\bar{g} + k))}$
+**Cas moyen** : $T(n) = O(B\bar{g}(nk + k^2))$
 
-**Pire cas** : $T(n) = O(Bnk(G + k))$
-
-
+**Pire cas** : $T(n) = O(BG(nk + k^2))$
 
 ## Tableau récapitulatif
 
@@ -635,7 +613,7 @@ $$\boxed{T_{\text{DP}}(n) = O(n\bar{g}) + O(Bnk(G + k))}$$
 | **Naïf R**           | $O(kn)$                 | $O(kn\bar{g})$         | $O(knG)$                    |
 | **DP R**             | $O(nk^2)$               | $O(nk^2\bar{g^2})$     | $O(nk^2G^2)$                |
 | **DP C++**           | $O(nk^2)$               | $O(nk^2\bar{g^2})$     | $O(nk^2G^2)$                |
-| **Beam C++**         | $O(Bnk)$                | $O(Bnk(\bar{g} + k))$  | $O(Bnk(G + k))$       |
+| **Beam C++**         | $O(B(nk + k^2))$        | $O(B\bar{g}(nk + k^2))$| $O(BG(nk + k^2))$           |
 
 
 ## Comparaison graphique
@@ -1065,9 +1043,9 @@ Les pentes estimées permettent de comparer directement la croissance du temps d
 
 - **Programmation dynamique (R)** : la pente élevée (~1.96) montre une forte augmentation du temps de calcul. L’algorithme devient difficilement utilisable lorsque \( n > 100 \).
 
-- **Programmation dynamique (C++)** : la pente plus faible (~1.7) reflète une complexité mieux contrôlée. L’implémentation est environ 100× plus rapide que celle en R.
+- **Programmation dynamique (C++)** : la pente plus faible (~1.7) reflète une complexité mieux contrôlée. 
 
-- **Programmation dynamique avec tas (C++)** : la croissance du temps reste modérée avec une pente d'environ 1.27, même pour de grandes valeurs de \( n \). Si on utiliserait des valeurs plus grandes que celle testées, le temps de cet algorithme serait moins important que celui d'une programmation dynamique standard. 
+- **Programmation dynamique avec tas (C++)** : la croissance du temps reste modérée avec une pente d'environ 1.27, même pour de grandes valeurs de \( n \). Cependant, comme l'algorithme naïf, l'optimalité n'est pas garantit. 
 
 
 # Conclusion
@@ -1076,9 +1054,9 @@ Les pentes estimées permettent de comparer directement la croissance du temps d
 
 | Contexte | Algorithme recommandé | Justification |
 |----------|----------------------|---------------|
-| Petits problèmes (n<100, G<3, k<10) | **Naïf R ou DP C++** | Rapide, optimal (garanti pour DP C++) |
-| Moyens problèmes (n<1000, G<5, k<20) | **Naïf R** ou **DP C++** | Optimal (garanti pour DP C++), performance acceptable |
-| Grands problèmes (n>1000 ou G>5) | **Naïf R** | Seul viable, quasi-optimal |
-| Recherche d'optimum prouvé | **DP C++** si faisable | Exact mais peut échouer |
+| Petits problèmes (n<100, G<3, k<10) | **Naïf R** ou **DP C++** ou **Beam C++** | Rapide, optimal (garanti pour DP C++) |
+| Moyens problèmes (n<1000, G<5, k<20) | **Naïf R** ou **DP C++** ou **Beam C++**| Optimal (garanti pour DP C++), très bonne performance |
+| Grands problèmes (n>1000 ou G>5) | **Naïf R** | Le plus rapide, quasi-optimal |
+| Recherche d'optimum prouvé | **DP C++** si faisable | Exact et plus rapide que **DP R** |
 
 
