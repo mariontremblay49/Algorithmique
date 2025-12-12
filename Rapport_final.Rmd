@@ -244,7 +244,7 @@ avec
 
 * $p$ : la position
 * $c=(c[1], c[2], ..., c[G])$ : vecteur des compteurs par groupe
-* $DP[p][\alpha]$ : meilleur score pour avoir sélectionné p éléments avec configuration $c$.
+* $DP[p][c]$ : meilleur score pour avoir sélectionné p éléments avec configuration $c$.
 * $b[i] = (b[i]_1, b[i]_2, \dots, b[i]_G)$ : vecteur binaire de groupe où :
 \[
 b[i]_g = 
