@@ -233,18 +233,18 @@ Chaque état est défini par :
 
 La relation de récurrence est :
 $$
-DP[p][\alpha] = max\{ DP[p][\alpha], DP [p-1][\alpha'] + w_p s_i \}
+DP[p][c] = max\{ DP[p][c], DP [p-1][c'] + w_p s_i \}
 $$
 Sous contraintes :
 * $i$ n'a pas encore été utlisé 
-* $\alpha=\alpha'+b(i)$
-* $\alpha'_g \le \alpha_g \quad \forall G$
+* $c=c'+b(i)$
+* $c'_g \le \alpha_g \quad \forall g$
 
 avec 
 
 * $p$ : la position
-* $\alpha=(\alpha[1], \alpha[2], ..., c[G])$ : vecteur des compteurs par groupe
-* $DP[p][\alpha]$ : meilleur score pour avoir sélectionné p éléments avec configuration $\alpha$.
+* $c=(c[1], c[2], ..., c[G])$ : vecteur des compteurs par groupe
+* $DP[p][\alpha]$ : meilleur score pour avoir sélectionné p éléments avec configuration $c$.
 * $b[i] = (b[i]_1, b[i]_2, \dots, b[i]_G)$ : vecteur binaire de groupe où :
 \[
 b[i]_g = 
