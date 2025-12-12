@@ -614,7 +614,7 @@ $$\boxed{T_{\text{DP}}(n) = O(n\bar{g}) + O(BG(nk + k^2))}$$
 | **DP R**             | $O(nk^2)$               | $O(nk^2\bar{g^2})$     | $O(nk^2G^2)$                |
 | **DP C++**           | $O(nk^2)$               | $O(nk^2\bar{g^2})$     | $O(nk^2G^2)$                |
 | **Beam C++**         | $O(B(nk + k^2))$        | $O(B\bar{g}(nk + k^2))$| $O(BG(nk + k^2))$           |
-
+B * G * (n * k + k^2)
 
 ## Comparaison graphique
 
@@ -637,7 +637,7 @@ df_moyen <- data.frame(
   Naive = k * n_values * g_bar,
   DP_R = n_values * k^2 * g_bar * g_bar,
   DP_Cpp = n_values * k^2 * g_bar * g_bar / 10,  # Facteur constant 10x plus petit
-  Beam = B * n_values * k *( G + k)
+  Beam = B * g_bar * (n_values * k + k^2)
 )
 
 df_moyen_long <- df_moyen %>%
@@ -683,7 +683,7 @@ df_pire <- data.frame(
   Naive = k * n_values * G,
   DP_R = pmin(n_values * k * k * G * G, 1e12),  # Limité pour visibilité
   DP_Cpp = pmin(n_values * k * k * G * G / 10, 1e12),
-  Beam = n_values * B * k *(G+k)
+  Beam = B * G * (n_values * k + k^2)
 )
 
 df_pire_long <- df_pire %>%
@@ -760,7 +760,7 @@ df <- data.frame(
   naive   = C1 * (k * n_values * G),
   DP_R    = C2 * (n_values * k * k * G * G),
   DP_C    = C3 * (n_values * k * k * G * G)/10,
-  BEAM_C  = C4 * (B * n_values * k * (G + k))
+  BEAM_C  = C4 * (B * G * (n_values * k + k^2))
 )
 
 library(dplyr)
@@ -817,8 +817,8 @@ df_impact <- data.frame(
   DP_pire  = n * k^2 * G_values^2,
 
   # Beam
-  Beam_moyen = B * n * k * (g_bar + k),
-  Beam_pire  = B * n * k * (G_values + k)
+  Beam_moyen = B * g2_bar * (n * k + k^2),
+  Beam_pire  = B * G_values * (n * k + k^2)
 )
 
 # Pire cas plafonné pour lisibilité
